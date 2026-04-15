@@ -1,0 +1,51 @@
+name: do_an_tot_nghiep_ho_tro_nuoi_ong
+description: "BeeGuard - Ung dung ho tro nuoi ong thong minh"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Navigation
+  go_router: ^14.8.1
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+
+  # UI Components
+  fl_chart: ^0.70.2
+  cached_network_image: ^3.4.1
+  shimmer: ^3.0.0
+
+  # Icons
+  lucide_icons: ^0.257.0
+
+  # Utils
+  intl: ^0.19.0
+
+  # Firebase
+  firebase_core: ^3.13.0
+  firebase_auth: ^5.5.0
+  cloud_firestore: ^5.6.0
+  firebase_storage: ^12.4.0
+
+  # Image Picker
+  image_picker: ^1.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
