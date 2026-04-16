@@ -44,6 +44,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Environment variables (contains secrets)
+.env
+
 # Firebase sensitive config (do not commit)
 firebase.json
 google-services.json
