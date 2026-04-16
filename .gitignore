@@ -43,3 +43,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase sensitive config (do not commit)
+firebase.json
+google-services.json
+GoogleService-Info.plist
+
+# AI assistant context files
+.free-claude/
+.free_claude/
