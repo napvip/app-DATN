@@ -49,8 +49,8 @@ app.*.map.json
 
 # Firebase sensitive config (do not commit)
 firebase.json
-google-services.json
-GoogleService-Info.plist
+**/google-services.json
+**/GoogleService-Info.plist
 
 # AI assistant context files
 .free-claude/

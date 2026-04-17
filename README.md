@@ -1,56 +1,48 @@
-# 🐝 BeeGuard — Ứng Dụng Hỗ Trợ Nuôi Ong Thông Minh
+# BeeGuard - Ứng Dụng Hỗ Trợ Nuôi Ong
 
-> **Đồ án tốt nghiệp** — Ứng dụng di động Flutter giúp người nuôi ong theo dõi tổ ong, nhận cảnh báo bất thường, quản lý lịch bảo trì và phân tích dữ liệu theo thời gian thực thông qua Firebase.
+**Đồ án tốt nghiệp** - Ứng dụng di động xây dựng bằng Flutter giúp người nuôi ong theo dõi thông số, quản lý tình trạng tổ ong, nhận cảnh báo bất thường và bảo trì thông qua dữ liệu thu thập theo thời gian thực phân tích trên Firebase.
 
----
+## Mục lục
 
-## 📋 Mục Lục
+- [Giới thiệu](#giới-thiệu)
+- [Tính năng](#tính-năng)
+- [Kiến trúc hệ thống](#kiến-trúc-hệ-thống)
+- [Tech Stack](#tech-stack)
+- [Hướng dẫn cài đặt](#hướng-dẫn-cài-đặt)
+- [Cấu hình Firebase](#cấu-hình-firebase)
+- [Cấu trúc thư mục](#cấu-trúc-thư-mục)
+- [Biến môi trường](#biến-môi-trường)
+- [Tham gia đóng góp](#tham-gia-đóng-góp)
 
-- [Giới thiệu](#-giới-thiệu)
-- [Tính năng](#-tính-năng)
-- [Kiến trúc hệ thống](#-kiến-trúc-hệ-thống)
-- [Tech Stack](#-tech-stack)
-- [Cài đặt & Chạy dự án](#-cài-đặt--chạy-dự-án)
-- [Cấu hình Firebase](#-cấu-hình-firebase)
-- [Cấu trúc thư mục](#-cấu-trúc-thư-mục)
-- [Biến môi trường](#-biến-môi-trường)
-- [Đóng góp](#-đóng-góp)
+## Giới thiệu
 
----
+**BeeGuard** là một hệ thống trên nền tảng di động (Android & iOS) được thiết kế cho người nuôi ong. Hệ thống kết nối với các cảm biến IoT và phân tích dữ liệu qua nền tảng Firebase, cung cấp các giải pháp:
 
-## 🎯 Giới Thiệu
+- Giám sát thông số môi trường (nhiệt độ, độ ẩm, âm thanh) của tổ ong theo thời gian thực.
+- Cảnh báo tự động về trường hợp môi trường tại tổ ong vượt ranh giới an toàn.
+- Lưu trữ và trực quan hóa dữ liệu theo đồ thị nhằm hỗ trợ đánh giá tình trạng tự nhiên.
+- Theo dõi quá trình bảo trì và lên lịch trình cho từng tổ ong.
+- Hỗ trợ xây dựng mô hình mở rộng, gồm nhiều tổ ong thuộc nhiều trang trại khác nhau.
 
-**BeeGuard** là ứng dụng di động (Android & iOS) hỗ trợ người nuôi ong quản lý đàn ong một cách thông minh. Thông qua kết nối với cảm biến IoT gắn tại tổ ong và nền tảng Firebase, ứng dụng cung cấp:
+## Tính năng
 
-- Giám sát nhiệt độ, độ ẩm, âm thanh tổ ong theo thời gian thực
-- Cảnh báo tự động khi phát hiện dấu hiệu bất thường (bầy ong bỏ tổ, dịch bệnh...)
-- Lịch sử và phân tích dữ liệu theo biểu đồ
-- Quản lý lịch bảo trì tổ ong
-- Hỗ trợ đa tổ ong, đa trang trại
-
----
-
-## ✨ Tính Năng
-
-| Tính năng | Mô tả |
+| Khối chức năng | Mô tả |
 |---|---|
-| 🏠 Dashboard | Tổng quan tình trạng tất cả các tổ ong |
-| 📊 Insights | Biểu đồ nhiệt độ, độ ẩm theo thời gian |
-| 🔔 Alerts | Nhận cảnh báo bất thường theo thời gian thực |
-| 🔧 Maintenance | Lên lịch và theo dõi lịch bảo trì tổ ong |
-| 👤 Profile | Quản lý thông tin người dùng & trang trại |
-| 🔐 Auth | Đăng nhập / Đăng ký qua Firebase Auth |
+| Dashboard | Quản lý tổng quan tình trạng của toàn hệ thống tổ ong đang được giám sát. |
+| Insights | Phân tích các thông số về nhiệt độ và độ ẩm qua biểu đồ thống kê. |
+| Alerts | Cung cấp thông báo khi có các biểu hiện chỉ số dao động bất thường. |
+| Maintenance | Quản lý và theo dõi lịch bảo trì cho từng tổ ong cụ thể. |
+| Profile | Quản lý thông tin tài khoản người dùng và thông tin trang trại. |
+| Authentication | Quản lý truy cập và tài khoản bằng Firebase Auth. |
 
----
+## Kiến trúc hệ thống
 
-## 🏛️ Kiến Trúc Hệ Thống
-
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                     BEEGUARD SYSTEM                         │
 └─────────────────────────────────────────────────────────────┘
 
-  📱 Mobile App (Flutter)
+  Mobile App (Flutter)
   ┌────────────────────────────────────┐
   │  Presentation Layer                │
   │  ┌──────────┐  ┌───────────────┐  │
@@ -69,7 +61,7 @@
   │         │                          │
   │  Data Layer                        │
   │  ┌──────────────┐ ┌────────────┐  │
-  │  │ Repositories  │ │ DataSources│  │
+  │  │ Repositories │ │ DataSources│  │
   │  └──────────────┘ └────────────┘  │
   └────────────────────────────────────┘
           │                     │
@@ -86,217 +78,171 @@
   └──────────────┘
 ```
 
-### Luồng dữ liệu (Data Flow)
+### Luồng xử lý dữ liệu
 
-```
+```text
 IoT Sensor ──► Firebase Realtime/Firestore ──► Flutter App ──► User
     │                                                │
     └──── Trigger Cloud Function ────► Alert ───────┘
 ```
 
-### Kiến trúc Flutter (Clean Architecture)
+### Kiến trúc dự án (Clean Architecture)
 
-```
+```text
 lib/
-├── presentation/     ← UI: Screens, Widgets
-│       └── providers (Riverpod) ← State
-├── domain/           ← Business logic: Use Cases, Entities
-├── data/             ← Data: Repositories, DataSources, Models
-├── config/           ← App config, themes, constants
-├── routes/           ← GoRouter navigation
-└── services/         ← Firebase, notification services
+├── presentation/     ← Giao diện (Screens, Widgets, Providers)
+├── domain/           ← Business logic (Use Cases, Entities)
+├── data/             ← Xử lý dữ liệu (Repositories, DataSources, Models)
+├── config/           ← Cấu hình hệ thống, theme, hằng số
+├── routes/           ← Điều hướng GoRouter
+└── services/         ← Dịch vụ kết nối ngoài (Firebase, Notifications)
 ```
 
----
+## Tech Stack
 
-## 🛠️ Tech Stack
-
-| Thành phần | Công nghệ |
+| Công nghệ/Thư viện | Vai trò |
 |---|---|
-| **Framework** | Flutter 3.x (Dart 3.7+) |
-| **State Management** | Riverpod 2.x |
-| **Navigation** | GoRouter 14.x |
-| **Backend** | Firebase (Auth, Firestore, Storage) |
-| **Charts** | fl_chart |
-| **Image** | cached_network_image, image_picker |
-| **Icons** | lucide_icons |
-| **I18n** | intl |
+| Flutter 3.x | Framework xây dựng giao diện người dùng đa nền tảng |
+| Riverpod 2.x | Quản lý trạng thái (State Management) |
+| GoRouter 14.x | Quản lý điều hướng trong luồng ứng dụng |
+| Firebase | Nền tảng Backend (Auth, Firestore, Storage) |
+| fl_chart | Thư viện biểu diễn đồ thị/biểu đồ dữ liệu |
+| cached_network_image | Quản lý cache ảnh nền mạng |
+| image_picker | Truy cập thư viện file và trình camera thiết bị |
+| lucide_icons | Bộ biểu tượng giao diện hệ thống |
+| intl | Hỗ trợ đa ngôn ngữ và định dạng DateTime |
 
----
+## Hướng dẫn cài đặt
 
-## 🚀 Cài Đặt & Chạy Dự Án
+### Yêu cầu môi trường
 
-### Yêu cầu hệ thống
-
-- Flutter SDK `>=3.7.0`
-- Dart SDK `>=3.7.0`
+- Flutter SDK (>= 3.7.0)
+- Dart SDK (>= 3.7.0)
 - Android Studio / VS Code
-- Firebase CLI (`npm install -g firebase-tools`)
-- Tài khoản Firebase
+- Firebase CLI (Yêu cầu Node.js npm: `npm install -g firebase-tools`)
+- Thuộc quyền sở hữu dự án trên Firebase
 
-### 1. Clone dự án
+### 1. Phục hồi mã nguồn
 
 ```bash
 git clone https://github.com/<your-username>/do_an_tot_nghiep_ho_tro_nuoi_ong.git
 cd do_an_tot_nghiep_ho_tro_nuoi_ong
 ```
 
-### 2. Cài đặt dependencies
+### 2. Tải dependencies
 
 ```bash
 flutter pub get
 ```
 
-### 3. Cấu hình Firebase (xem phần dưới)
+### 3. Cấu hình Firebase
+[Chi tiết tại phần Cấu hình Firebase bên dưới]
 
 ### 4. Chạy ứng dụng
 
 ```bash
-# Chạy trên thiết bị/emulator (debug mode)
+# Debug trên emulator hay thiết bị USB
 flutter run
 
-# Chạy trên Android cụ thể
+# Chỉ định device cụ thể (danh sách có thể xem qua lệnh: flutter devices)
 flutter run -d <device-id>
-
-# Xem danh sách thiết bị đang kết nối
-flutter devices
 ```
 
-### 5. Build release
+### 5. Triển khai phiên bản phát hành
 
 ```bash
-# Build APK Android
 flutter build apk --release
-
-# Build App Bundle (Play Store)
 flutter build appbundle --release
-
-# Build iOS (macOS bắt buộc)
 flutter build ios --release
 ```
 
----
+## Cấu hình Firebase
 
-## 🔥 Cấu Hình Firebase
+**Lưu ý:** Các file cấu hình `firebase.json` và `google-services.json` cần thiết lập bảo mật và không đưa lên hệ thống quản lý git mở.
 
-> ⚠️ **QUAN TRỌNG:** File `firebase.json` và `google-services.json` chứa thông tin nhạy cảm và **KHÔNG được commit lên Git**. Xem `.gitignore`.
+### Bước 1: Khởi tạo project
+1. Khởi tạo dự án thông qua nền tảng [Firebase Console](https://console.firebase.google.com).
+2. Kích hoạt dịch vụ Authentication qua Email/Password.
+3. Thiết lập kết nối cơ sở dữ liệu trên Firestore Database.
+4. Kích hoạt Firebase Storage cho việc sao lưu tập tin của người dùng.
 
-### Bước 1: Tạo Firebase Project
-
-1. Truy cập [Firebase Console](https://console.firebase.google.com)
-2. Tạo project mới hoặc dùng project có sẵn
-3. Bật **Authentication** (Email/Password)
-4. Tạo **Firestore Database**
-5. Bật **Firebase Storage**
-
-### Bước 2: Thêm ứng dụng vào Firebase
+### Bước 2: Đồng bộ Firebase resources
 
 ```bash
-# Cài FlutterFire CLI
 dart pub global activate flutterfire_cli
-
-# Đăng nhập Firebase
 firebase login
-
-# Cấu hình tự động (tạo lib/firebase_options.dart)
 flutterfire configure --project=<your-firebase-project-id>
 ```
+Quy trình này sẽ tự động sinh module lưu cấu hình tại tệp mã nguồn `lib/firebase_options.dart`.
 
-Lệnh trên sẽ tự tạo file `lib/firebase_options.dart` với các thông tin cấu hình.
+### Bước 3: Cấu hình trên Client
+- **Android:** Tải file `google-services.json` từ console xuống, sau đó chép vào `android/app/`.
+- **iOS:** Tải file `GoogleService-Info.plist` từ console xuống, sau đó chép vào `ios/Runner/`.
 
-### Bước 3: Tải google-services.json
+## Cấu trúc thư mục chi tiết
 
-- **Android:** Tải `google-services.json` từ Firebase Console → đặt vào `android/app/`
-- **iOS:** Tải `GoogleService-Info.plist` → đặt vào `ios/Runner/`
-
-> 💡 Hai file này đã được thêm vào `.gitignore`. Mỗi developer cần tải về và đặt thủ công.
-
----
-
-## 📁 Cấu Trúc Thư Mục
-
-```
+```text
 do_an_tot_nghiep_ho_tro_nuoi_ong/
-├── android/                    # Android native project
-├── ios/                        # iOS native project
+├── android/                    
+├── ios/                        
 ├── assets/
-│   └── images/                 # Hình ảnh tĩnh
+│   └── images/                 
 ├── lib/
-│   ├── config/                 # Cấu hình app (theme, constants)
-│   ├── core/                   # Core utilities, extensions
+│   ├── config/                 
+│   ├── core/                   
 │   ├── data/
-│   │   ├── datasources/        # Firebase datasources
-│   │   ├── models/             # Data models (JSON serialization)
-│   │   └── repositories/       # Repository implementations
-│   ├── domain/                 # Business logic, entities
-│   ├── models/                 # Shared models
-│   ├── presentation/           # Riverpod providers
-│   ├── routes/                 # GoRouter config
+│   │   ├── datasources/        
+│   │   ├── models/             
+│   │   └── repositories/       
+│   ├── domain/                 
+│   ├── models/                 
+│   ├── presentation/           
+│   ├── routes/                 
 │   ├── screens/
-│   │   ├── auth/               # Màn hình đăng nhập, đăng ký
-│   │   ├── hive/               # Quản lý tổ ong
-│   │   └── main/               # Màn hình chính
-│   │       ├── home_screen.dart
-│   │       ├── alerts_screen.dart
-│   │       ├── insights_screen.dart
-│   │       ├── maintenance_screen.dart
-│   │       └── profile_screen.dart
-│   ├── services/               # Firebase services, notifications
-│   ├── widgets/                # Reusable widgets
-│   ├── firebase_options.dart   # Auto-generated by FlutterFire CLI
-│   └── main.dart               # Entry point
-├── test/                       # Unit & Widget tests
-├── pubspec.yaml                # Dependencies
-├── CHANGELOG.md                # Lịch sử thay đổi
-└── README.md                   # File này
+│   │   ├── auth/               
+│   │   ├── hive/               
+│   │   └── main/               
+│   ├── services/               
+│   ├── widgets/                
+│   ├── firebase_options.dart   
+│   └── main.dart               
+├── test/                       
+├── pubspec.yaml                
+├── CHANGELOG.md                
+└── README.md                   
 ```
 
----
+## Biến môi trường
 
-## 🔐 Biến Môi Trường
+Hệ thống kết nối với máy chủ qua cấu hình tĩnh `firebase_options.dart` tạo ra nhờ công cụ CLI. Việc lưu chuỗi API key bằng văn bản thuần túy trong mã nguồn (hardcode) là hành vi bỏ qua nguyên tắc bảo mật.
 
-Dự án sử dụng `lib/firebase_options.dart` (auto-generated bởi FlutterFire CLI) thay vì lưu trực tiếp credentials vào code.
-
-| Config | Nơi lưu | Cách lấy |
+| Trường cấu hình | Vị trí lưu | Ghi chú cập nhật |
 |---|---|---|
-| Firebase Project ID | `firebase_options.dart` | `flutterfire configure` |
-| Android App ID | `google-services.json` | Firebase Console → Android App |
-| iOS App ID | `GoogleService-Info.plist` | Firebase Console → iOS App |
-| Web App ID | `firebase_options.dart` | Firebase Console → Web App |
+| Firebase Project ID | `firebase_options.dart` | Cập nhật với lệnh `flutterfire configure` |
+| Android App ID | `google-services.json` | Cấu hình qua Firebase Console cho app Android |
+| iOS App ID | `GoogleService-Info.plist` | Cấu hình qua Firebase Console cho app iOS |
+| Web App ID | `firebase_options.dart` | Cấu hình qua Firebase Console cho app Web |
 
-> **Không bao giờ hardcode API keys hay credentials trực tiếp vào source code.**
+## Tham gia đóng góp
 
----
+Toàn bộ quy trình tham gia thay đổi mã nguồn được mô tả như sau:
 
-## 🤝 Đóng Góp
+1. Fork repository tại nhánh chính.
+2. Tạo mới một nhánh độc lập (`git checkout -b feature/tinh-nang-moi`).
+3. Đóng gói các thay đổi (`git commit -m "feat: mo ta tinh nang dang trien khai"`).
+4. Đẩy nhánh vừa tạo lên remote (`git push origin feature/tinh-nang-moi`).
+5. Gửi yêu cầu gộp mã (Pull Request).
 
-1. Fork repository này
-2. Tạo branch mới: `git checkout -b feature/ten-tinh-nang`
-3. Commit thay đổi: `git commit -m "feat: thêm tính năng X"`
-4. Push branch: `git push origin feature/ten-tinh-nang`
-5. Tạo Pull Request
+### Quy ước Commit
 
-### Commit Convention
-
-```
-feat:     Thêm tính năng mới
-fix:      Sửa lỗi
-docs:     Cập nhật tài liệu
-style:    Thay đổi format, không ảnh hưởng logic
-refactor: Tái cấu trúc code
-test:     Thêm/cập nhật test
-chore:    Cập nhật build, dependencies
+```text
+feat:     Bổ sung hoặc triển khai tính năng
+fix:      Khắc phục lỗi phần mềm
+docs:     Bổ sung tài liệu hoặc văn bản cấu trúc
+style:    Chỉnh sửa định dạng hiển thị file, không làm thay đổi logic source code
+refactor: Cấu trúc hóa lại đoạn hoặc khối source code
+test:     Khởi tạo hoặc tinh chỉnh cấu trúc cho các module test
+chore:    Tùy biến cho hạ tầng hệ thống và tool quản trị
 ```
 
----
 
-## 📄 License
-
-Đồ án tốt nghiệp — Không sử dụng cho mục đích thương mại.
-
----
-
-*Được xây dựng với ❤️ bằng Flutter & Firebase*
-
-
-hello

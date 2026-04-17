@@ -4,19 +4,22 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../screens/auth/splash_screen.dart';
-import '../screens/auth/onboarding_screen.dart';
-import '../screens/auth/login_screen.dart';
-import '../screens/auth/register_screen.dart';
-import '../screens/auth/forgot_password_screen.dart';
-import '../screens/main/main_screen.dart';
-import '../screens/main/home_screen.dart';
-import '../screens/main/alerts_screen.dart';
-import '../screens/main/insights_screen.dart';
-import '../screens/main/maintenance_screen.dart';
-import '../screens/main/profile_screen.dart';
-import '../screens/hive/hive_detail_screen.dart';
-import '../screens/hive/add_hive_screen.dart';
+import '../presentation/screens/auth/splash_screen.dart';
+import '../presentation/screens/auth/onboarding_screen.dart';
+import '../presentation/screens/auth/login_screen.dart';
+import '../presentation/screens/auth/register_screen.dart';
+import '../presentation/screens/auth/forgot_password_screen.dart';
+import '../presentation/screens/main/main_screen.dart';
+import '../presentation/screens/main/home_screen.dart';
+import '../presentation/screens/main/alerts_screen.dart';
+import '../presentation/screens/main/insights_screen.dart';
+import '../presentation/screens/main/maintenance_screen.dart';
+import '../presentation/screens/main/profile_screen.dart';
+import '../presentation/screens/main/book_service_screen.dart';
+import '../presentation/screens/main/service_detail_screen.dart';
+import '../presentation/screens/hive/hive_detail_screen.dart';
+import '../presentation/screens/hive/add_hive_screen.dart';
+import '../presentation/screens/main/chat_screen.dart';
 
 /// Lắng nghe thay đổi trạng thái xác thực Firebase để router tự redirect.
 class _AuthNotifier extends ChangeNotifier {
@@ -54,6 +57,11 @@ class AppRoutes {
   static const String profile = '/app/profile';
   static const String hiveDetail = '/hive/:id';
   static const String addHive = '/add-hive';
+
+  // Maintenance feature routes
+  static const String bookService = '/book-service';
+  static const String serviceDetail = '/service-detail';
+  static const String chat = '/chat';
 
   // ---------------------------------------------------------------------------
   // Router
@@ -164,6 +172,25 @@ class AppRoutes {
       GoRoute(
         path: addHive,
         builder: (context, state) => const AddHiveScreen(),
+      ),
+
+      // -----------------------------------------------------------------------
+      // Maintenance feature routes
+      // -----------------------------------------------------------------------
+      GoRoute(
+        path: bookService,
+        builder: (context, state) => const BookServiceScreen(),
+      ),
+      GoRoute(
+        path: '$serviceDetail/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return ServiceDetailScreen(bookingId: id);
+        },
+      ),
+      GoRoute(
+        path: chat,
+        builder: (context, state) => const ChatScreen(),
       ),
     ],
   );
