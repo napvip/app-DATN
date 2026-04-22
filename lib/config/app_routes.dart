@@ -20,6 +20,8 @@ import '../presentation/screens/main/service_detail_screen.dart';
 import '../presentation/screens/hive/hive_detail_screen.dart';
 import '../presentation/screens/hive/add_hive_screen.dart';
 import '../presentation/screens/main/chat_screen.dart';
+import '../presentation/screens/main/qr_scanner_screen.dart';
+import '../presentation/screens/main/sos_alert_screen.dart';
 
 /// Lắng nghe thay đổi trạng thái xác thực Firebase để router tự redirect.
 class _AuthNotifier extends ChangeNotifier {
@@ -63,11 +65,15 @@ class AppRoutes {
   static const String serviceDetail = '/service-detail';
   static const String chat = '/chat';
 
+  // Tracking feature routes
+  static const String qrScanner = '/qr-scanner';
+  static const String sosAlert = '/sos-alert';
+
   // ---------------------------------------------------------------------------
   // Router
   // ---------------------------------------------------------------------------
 
-  static final GlobalKey<NavigatorState> _rootNavigatorKey =
+  static final GlobalKey<NavigatorState> rootNavigatorKey =
       GlobalKey<NavigatorState>(debugLabel: 'root');
   static final GlobalKey<NavigatorState> _shellNavigatorKey =
       GlobalKey<NavigatorState>(debugLabel: 'shell');
@@ -82,7 +88,7 @@ class AppRoutes {
   static final _authNotifier = _AuthNotifier();
 
   static final GoRouter router = GoRouter(
-    navigatorKey: _rootNavigatorKey,
+    navigatorKey: rootNavigatorKey,
     initialLocation: splash,
     refreshListenable: _authNotifier,
 
@@ -191,6 +197,14 @@ class AppRoutes {
       GoRoute(
         path: chat,
         builder: (context, state) => const ChatScreen(),
+      ),
+      GoRoute(
+        path: qrScanner,
+        builder: (context, state) => const QRScannerScreen(),
+      ),
+      GoRoute(
+        path: sosAlert,
+        builder: (context, state) => const SOSAlertScreen(),
       ),
     ],
   );

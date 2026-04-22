@@ -38,9 +38,20 @@ dependencies:
   firebase_auth: ^5.5.0
   cloud_firestore: ^5.6.0
   firebase_storage: ^12.4.0
+  firebase_database: ^11.3.4
+
+  # Scanning & Audio
+  mobile_scanner: ^6.0.0
+  audioplayers: ^6.1.0
 
   # Image Picker
   image_picker: ^1.1.2
+
+  # Notifications & Settings
+  firebase_messaging: ^15.2.5
+  flutter_local_notifications: ^18.0.1
+  shared_preferences: ^2.5.3
+  flutter_overlay_window: ^0.4.2
 
   # Environment variables
   flutter_dotenv: ^5.2.1
@@ -55,4 +66,5 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/audio/
     - .env

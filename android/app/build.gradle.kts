@@ -9,12 +9,13 @@ plugins {
 
 android {
     namespace = "com.example.do_an_tot_nghiep_ho_tro_nuoi_ong"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -51,6 +52,6 @@ flutter {
 }
 
 dependencies {
-    // MultiDex support
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("androidx.multidex:multidex:2.0.1")
 }

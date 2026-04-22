@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../config/app_colors.dart';
+import '../../../config/app_routes.dart';
 import '../../../data/models/alert_model.dart';
 import '../../../core/widgets/cached_image.dart';
 
@@ -61,6 +63,59 @@ class _AlertsScreenState extends State<AlertsScreen> {
                     ),
                   ),
                 ],
+              ),
+            ),
+
+            // SOS Alert Banner
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              child: GestureDetector(
+                onTap: () => context.push(AppRoutes.sosAlert),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFFECACA)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        LucideIcons.shieldAlert,
+                        size: 20,
+                        color: AppColors.destructive,
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Cảnh báo SOS',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.destructive,
+                              ),
+                            ),
+                            Text(
+                              'Phát hiện ong bắp cày từ thiết bị tracking',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.mutedForeground,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        LucideIcons.chevronRight,
+                        size: 16,
+                        color: AppColors.mutedForeground,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
 

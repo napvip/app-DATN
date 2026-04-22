@@ -6,6 +6,7 @@ import '../../../config/app_colors.dart';
 import '../../../config/app_routes.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/datasources/auth_service.dart';
+import '../../../data/datasources/user_settings_service.dart';
 import '../../../core/widgets/app_card.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -17,8 +18,11 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _authService = AuthService();
+  final _settings = UserSettingsService();
   UserModel? _user;
   bool _isLoading = true;
+  int _alarmDuration = 30;
+  int _alertCooldown = 60;
 
   @override
   void initState() {
@@ -28,8 +32,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUser() async {
     try {
-      final user = await _authService.getCurrentUserModel();
-      if (mounted) setState(() { _user = user; _isLoading = false; });
+      final results = await Future.wait([
+        _authService.getCurrentUserModel(),
+        _settings.getAlarmDuration(),
+        _settings.getAlertCooldown(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _user = results[0] as UserModel?;
+          _alarmDuration = results[1] as int;
+          _alertCooldown = results[2] as int;
+          _isLoading = false;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -109,6 +124,149 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     }
+  }
+
+  void _showNotificationSettings(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setModal) {
+          String formatCooldown(int s) {
+            if (s < 60) return '${s}s';
+            final m = s ~/ 60;
+            final rem = s % 60;
+            return rem == 0 ? '$m phút' : '${m}p ${rem}s';
+          }
+
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Cài đặt thông báo SOS',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 24),
+
+                // Alarm duration
+                Row(
+                  children: [
+                    const Icon(LucideIcons.bell, size: 18,
+                        color: AppColors.mutedForeground),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                        child: Text('Thời gian chuông',
+                            style: TextStyle(fontSize: 14))),
+                    Text(
+                      '${_alarmDuration}s',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    const Text('5s',
+                        style: TextStyle(
+                            fontSize: 11, color: AppColors.mutedForeground)),
+                    Expanded(
+                      child: Slider(
+                        value: _alarmDuration.toDouble(),
+                        min: 5,
+                        max: 120,
+                        divisions: 23,
+                        activeColor: AppColors.primary,
+                        onChanged: (v) async {
+                          final val = v.round();
+                          setModal(() {});
+                          setState(() => _alarmDuration = val);
+                          await _settings.setAlarmDuration(val);
+                        },
+                      ),
+                    ),
+                    const Text('120s',
+                        style: TextStyle(
+                            fontSize: 11, color: AppColors.mutedForeground)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Alert cooldown
+                Row(
+                  children: [
+                    const Icon(LucideIcons.timer, size: 18,
+                        color: AppColors.mutedForeground),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                        child: Text('Tần suất cảnh báo',
+                            style: TextStyle(fontSize: 14))),
+                    Text(
+                      formatCooldown(_alertCooldown),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    const Text('3s',
+                        style: TextStyle(
+                            fontSize: 11, color: AppColors.mutedForeground)),
+                    Expanded(
+                      child: Slider(
+                        value: _alertCooldown.toDouble(),
+                        min: 3,
+                        max: 600,
+                        divisions: 199,
+                        activeColor: AppColors.primary,
+                        onChanged: (v) async {
+                          final val = v.round();
+                          setModal(() {});
+                          setState(() => _alertCooldown = val);
+                          await _settings.setAlertCooldown(val);
+                        },
+                      ),
+                    ),
+                    const Text('10p',
+                        style: TextStyle(
+                            fontSize: 11, color: AppColors.mutedForeground)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Sau ${formatCooldown(_alertCooldown)} kể từ cảnh báo trước, hệ thống mới cảnh báo tiếp.',
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.mutedForeground),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _pickAndUploadAvatar() async {
@@ -222,7 +380,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               _MenuItem(
                                 icon: LucideIcons.bell,
                                 label: 'Cài đặt thông báo',
-                                onTap: () {},
+                                onTap: () => _showNotificationSettings(context),
                               ),
                             ],
                           ),
