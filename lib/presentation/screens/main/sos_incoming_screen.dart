@@ -1,10 +1,9 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../config/app_routes.dart';
+import '../../../core/widgets/cached_image.dart';
 
 class SOSIncomingScreen extends StatefulWidget {
   final Map<String, dynamic> alert;
@@ -46,6 +45,8 @@ class _SOSIncomingScreenState extends State<SOSIncomingScreen>
     final count = widget.alert['detection_count'] as int? ?? 0;
     final confidence =
         ((widget.alert['confidence'] as num?)?.toDouble() ?? 0) * 100;
+    final imageUrl = widget.alert['image_url'] as String? ?? '';
+    final hasImage = imageUrl.isNotEmpty;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -60,9 +61,9 @@ class _SOSIncomingScreenState extends State<SOSIncomingScreen>
         child: SafeArea(
           child: Column(
             children: [
-              const SizedBox(height: 48),
+              const SizedBox(height: 32),
 
-              // Label
+              // Alert badge
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -81,117 +82,62 @@ class _SOSIncomingScreenState extends State<SOSIncomingScreen>
                 ),
               ),
 
-              const SizedBox(height: 48),
+              const SizedBox(height: 28),
 
-              // Pulsing rings + icon
-              SizedBox(
-                width: 220,
-                height: 220,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Outer ring
-                    AnimatedBuilder(
-                      animation: _ringCtrl,
-                      builder: (_, __) {
-                        final scale = 1.0 + _ringCtrl.value * 0.6;
-                        final opacity = (1.0 - _ringCtrl.value).clamp(0.0, 1.0);
-                        return Transform.scale(
-                          scale: scale,
-                          child: Container(
-                            width: 160,
-                            height: 160,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.red.withOpacity(opacity * 0.6),
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    // Middle ring
-                    AnimatedBuilder(
-                      animation: _ringCtrl,
-                      builder: (_, __) {
-                        final t = (_ringCtrl.value + 0.3) % 1.0;
-                        final scale = 1.0 + t * 0.6;
-                        final opacity = (1.0 - t).clamp(0.0, 1.0);
-                        return Transform.scale(
-                          scale: scale,
-                          child: Container(
-                            width: 160,
-                            height: 160,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.red.withOpacity(opacity * 0.6),
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    // Icon circle
-                    AnimatedBuilder(
-                      animation: _pulseCtrl,
-                      builder: (_, __) {
-                        final scale = 0.95 + _pulseCtrl.value * 0.1;
-                        return Transform.scale(
-                          scale: scale,
-                          child: Container(
-                            width: 130,
-                            height: 130,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0xFFDC2626),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.red.withOpacity(0.5),
-                                  blurRadius: 24,
-                                  spreadRadius: 4,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              LucideIcons.alertTriangle,
-                              size: 56,
-                              color: Colors.white,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
+              // Main visual: detection image or pulsing rings
+              if (hasImage)
+                _DetectionImage(
+                  imageUrl: imageUrl,
+                  pulseCtrl: _pulseCtrl,
+                )
+              else
+                _PulsingRings(pulseCtrl: _pulseCtrl, ringCtrl: _ringCtrl),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
 
               // Hive name
-              Text(
-                hiveName,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  hiveName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
               // Detection info
               Text(
                 'Phát hiện $count con · Độ tin cậy ${confidence.toStringAsFixed(0)}%',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.8),
-                  fontSize: 15,
+                  fontSize: 14,
                 ),
                 textAlign: TextAlign.center,
               ),
+
+              if (hasImage) ...[
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(LucideIcons.camera,
+                        size: 13, color: Colors.white.withOpacity(0.5)),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Ảnh từ camera tracking',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
 
               const Spacer(),
 
@@ -201,7 +147,6 @@ class _SOSIncomingScreenState extends State<SOSIncomingScreen>
                     const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
                 child: Row(
                   children: [
-                    // Dismiss
                     Expanded(
                       child: _ActionButton(
                         icon: LucideIcons.x,
@@ -211,7 +156,6 @@ class _SOSIncomingScreenState extends State<SOSIncomingScreen>
                       ),
                     ),
                     const SizedBox(width: 24),
-                    // View detail
                     Expanded(
                       child: _ActionButton(
                         icon: LucideIcons.shieldAlert,
@@ -234,6 +178,192 @@ class _SOSIncomingScreenState extends State<SOSIncomingScreen>
   }
 }
 
+// --------------------------------------------------------------------------
+// Detection Image widget — hiển thị ảnh Cloudinary có badge cảnh báo
+// --------------------------------------------------------------------------
+class _DetectionImage extends StatelessWidget {
+  final String imageUrl;
+  final AnimationController pulseCtrl;
+
+  const _DetectionImage({required this.imageUrl, required this.pulseCtrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Stack(
+        alignment: Alignment.topRight,
+        children: [
+          // Detection image
+          AnimatedBuilder(
+            animation: pulseCtrl,
+            builder: (_, child) {
+              final glow = 8.0 + pulseCtrl.value * 12.0;
+              return Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withOpacity(0.4 + pulseCtrl.value * 0.3),
+                      blurRadius: glow,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: child,
+              );
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: CachedImage(
+                imageUrl: imageUrl,
+                width: double.infinity,
+                height: 200,
+              ),
+            ),
+          ),
+
+          // Animated warning badge
+          Positioned(
+            top: 10,
+            right: 10,
+            child: AnimatedBuilder(
+              animation: pulseCtrl,
+              builder: (_, __) {
+                final scale = 0.9 + pulseCtrl.value * 0.15;
+                return Transform.scale(
+                  scale: scale,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFDC2626),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.red.withOpacity(0.6),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      LucideIcons.alertTriangle,
+                      size: 20,
+                      color: Colors.white,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --------------------------------------------------------------------------
+// Pulsing Rings widget — hiển thị khi không có ảnh
+// --------------------------------------------------------------------------
+class _PulsingRings extends StatelessWidget {
+  final AnimationController pulseCtrl;
+  final AnimationController ringCtrl;
+
+  const _PulsingRings({required this.pulseCtrl, required this.ringCtrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 220,
+      height: 220,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Outer ring
+          AnimatedBuilder(
+            animation: ringCtrl,
+            builder: (_, __) {
+              final scale = 1.0 + ringCtrl.value * 0.6;
+              final opacity = (1.0 - ringCtrl.value).clamp(0.0, 1.0);
+              return Transform.scale(
+                scale: scale,
+                child: Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.red.withOpacity(opacity * 0.6),
+                      width: 2,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          // Middle ring
+          AnimatedBuilder(
+            animation: ringCtrl,
+            builder: (_, __) {
+              final t = (ringCtrl.value + 0.3) % 1.0;
+              final scale = 1.0 + t * 0.6;
+              final opacity = (1.0 - t).clamp(0.0, 1.0);
+              return Transform.scale(
+                scale: scale,
+                child: Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.red.withOpacity(opacity * 0.6),
+                      width: 2,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          // Icon circle
+          AnimatedBuilder(
+            animation: pulseCtrl,
+            builder: (_, __) {
+              final scale = 0.95 + pulseCtrl.value * 0.1;
+              return Transform.scale(
+                scale: scale,
+                child: Container(
+                  width: 130,
+                  height: 130,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFDC2626),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.red.withOpacity(0.5),
+                        blurRadius: 24,
+                        spreadRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    LucideIcons.alertTriangle,
+                    size: 56,
+                    color: Colors.white,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --------------------------------------------------------------------------
+// Action Button
+// --------------------------------------------------------------------------
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;

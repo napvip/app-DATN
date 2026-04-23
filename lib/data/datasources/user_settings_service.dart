@@ -19,10 +19,10 @@ class UserSettingsService {
     await prefs.setInt(_alarmDurationKey, seconds.clamp(5, 120));
   }
 
-  // Alert cooldown: bao lâu mới cảnh báo tiếp (3–600s, mặc định 60s)
+  // Alert cooldown: bao lâu mới cảnh báo tiếp (3–600s, mặc định 5s)
   Future<int> getAlertCooldown() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_alertCooldownKey) ?? 60;
+    return prefs.getInt(_alertCooldownKey) ?? 5;
   }
 
   Future<void> setAlertCooldown(int seconds) async {

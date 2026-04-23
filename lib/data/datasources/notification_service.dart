@@ -162,6 +162,7 @@ class NotificationService {
           'hive_name': data['hive_name'] ?? '',
           'detection_count': int.tryParse(data['detection_count']?.toString() ?? '0') ?? 0,
           'confidence': double.tryParse(data['confidence']?.toString() ?? '0') ?? 0,
+          'image_url': data['image_url'] ?? '',
         }),
         transitionsBuilder: (_, anim, __, child) => SlideTransition(
           position: Tween<Offset>(

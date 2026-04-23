@@ -28,6 +28,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _loading = true;
   bool _sending = false;
+  bool _hasError = false;
 
   // ảnh đang chờ gửi
   Uint8List? _pendingBytes;
@@ -49,8 +50,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _init() async {
+    if (mounted) setState(() { _loading = true; _hasError = false; });
     try {
       final id = await _service.getOrCreateConversationId();
+      _msgSub?.cancel();
       _msgSub = _service.messagesStream(id).listen((msgs) {
         if (!mounted) return;
         setState(() => _messages = msgs);
@@ -59,7 +62,7 @@ class _ChatScreenState extends State<ChatScreen> {
       await _service.markUserRead(id);
       if (mounted) setState(() { _conversationId = id; _loading = false; });
     } catch (e) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() { _loading = false; _hasError = true; });
     }
   }
 
@@ -90,7 +93,13 @@ class _ChatScreenState extends State<ChatScreen> {
   void _cancelPending() => setState(() { _pendingBytes = null; });
 
   Future<void> _send() async {
-    if (_conversationId == null) return;
+    if (_conversationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chưa kết nối được. Vui lòng thử lại.')),
+      );
+      _init();
+      return;
+    }
     final text = _textCtrl.text.trim();
     final bytes = _pendingBytes;
 
@@ -110,7 +119,11 @@ class _ChatScreenState extends State<ChatScreen> {
         await _service.sendTextMessage(_conversationId!, text);
       }
     } catch (_) {
-      // silently fail — could show snackbar
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gửi thất bại. Vui lòng thử lại.')),
+        );
+      }
     } finally {
       if (mounted) setState(() { _sending = false; _uploadingImage = false; });
     }
@@ -143,13 +156,15 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: _buildAppBar(),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : Column(
-              children: [
-                Expanded(child: _buildMessageList()),
-                if (_pendingBytes != null) _buildImagePreviewBar(),
-                _buildInputBar(),
-              ],
-            ),
+          : _hasError
+              ? _buildErrorState()
+              : Column(
+                  children: [
+                    Expanded(child: _buildMessageList()),
+                    if (_pendingBytes != null) _buildImagePreviewBar(),
+                    _buildInputBar(),
+                  ],
+                ),
     );
   }
 
@@ -192,6 +207,25 @@ class _ChatScreenState extends State<ChatScreen> {
                   style: TextStyle(fontSize: 11, color: AppColors.mutedForeground)),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.wifi_off_rounded, size: 48, color: AppColors.mutedForeground),
+          const SizedBox(height: 12),
+          const Text('Không thể kết nối',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          const Text('Kiểm tra kết nối mạng và thử lại',
+              style: TextStyle(fontSize: 13, color: AppColors.mutedForeground)),
+          const SizedBox(height: 16),
+          TextButton(onPressed: _init, child: const Text('Thử lại')),
         ],
       ),
     );
@@ -603,7 +637,8 @@ class _SendButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: canSend ? onTap : null,
+      behavior: HitTestBehavior.opaque,
+      onTap: () { if (canSend) onTap(); },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         width: 40,
