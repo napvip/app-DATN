@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(flutter pub *)"
+      "Bash(flutter pub *)",
+      "Bash(xargs grep *)",
+      "Bash(python make_docx.py)",
+      "Bash(python *)",
+      "Bash(flutter clean *)"
     ]
   }
 }

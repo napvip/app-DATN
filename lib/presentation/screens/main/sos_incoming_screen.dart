@@ -4,8 +4,11 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../config/app_routes.dart';
 import '../../../core/widgets/cached_image.dart';
+import '../../../data/datasources/sos_realtime_service.dart';
 
 class SOSIncomingScreen extends StatefulWidget {
+  static bool isShowing = false;
+
   final Map<String, dynamic> alert;
   const SOSIncomingScreen({super.key, required this.alert});
 
@@ -21,6 +24,7 @@ class _SOSIncomingScreenState extends State<SOSIncomingScreen>
   @override
   void initState() {
     super.initState();
+    SOSIncomingScreen.isShowing = true;
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -34,6 +38,7 @@ class _SOSIncomingScreenState extends State<SOSIncomingScreen>
 
   @override
   void dispose() {
+    SOSIncomingScreen.isShowing = false;
     _pulseCtrl.dispose();
     _ringCtrl.dispose();
     super.dispose();
@@ -152,7 +157,10 @@ class _SOSIncomingScreenState extends State<SOSIncomingScreen>
                         icon: LucideIcons.x,
                         label: 'Bỏ qua',
                         bg: Colors.white.withOpacity(0.15),
-                        onTap: () => Navigator.of(context).pop(),
+                        onTap: () {
+                          SOSRealtimeService().stopAlarm();
+                          Navigator.of(context).pop();
+                        },
                       ),
                     ),
                     const SizedBox(width: 24),
@@ -162,6 +170,7 @@ class _SOSIncomingScreenState extends State<SOSIncomingScreen>
                         label: 'Xem ngay',
                         bg: const Color(0xFFDC2626),
                         onTap: () {
+                          SOSRealtimeService().stopAlarm();
                           Navigator.of(context).pop();
                           context.push(AppRoutes.sosAlert);
                         },

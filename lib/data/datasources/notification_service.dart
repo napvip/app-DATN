@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -25,8 +27,20 @@ class NotificationService {
 
   static final _localNotifs = FlutterLocalNotificationsPlugin();
 
-  static const _channelId = 'sos_channel';
+  // sos_channel_v2: channel mới để áp dụng custom sound (Android không cho đổi sound trên channel cũ)
+  static const _channelId = 'sos_channel_v2';
   static const _channelName = 'SOS Cảnh báo ong bắp cày';
+
+  static const _sosSound = RawResourceAndroidNotificationSound('v1');
+
+  static const _channel = AndroidNotificationChannel(
+    _channelId,
+    _channelName,
+    importance: Importance.max,
+    enableVibration: true,
+    playSound: true,
+    sound: _sosSound,
+  );
 
   static Future<void> init() async {
     // Local notifications
@@ -36,35 +50,23 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
-    // Tạo notification channel Android
+    // Tạo notification channel Android với custom sound
     await _localNotifs
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(
-          const AndroidNotificationChannel(
-            _channelId,
-            _channelName,
-            importance: Importance.max,
-            enableVibration: true,
-            playSound: true,
-          ),
-        );
+        ?.createNotificationChannel(_channel);
 
     // Đăng ký background handler TRƯỚC — không được nằm trong try-catch
-    // vì nếu getToken() lỗi thì handler sẽ không bao giờ được đăng ký
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-    // Khi foreground: RTDB listener đã lo (SOSRealtimeService) — không xử lý
-    // onMessage ở đây để tránh double notification.
-
-    // Khi user tap vào notification để mở app từ background
+    // Khi user tap vào FCM notification để mở app từ background
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       if (message.data['type'] == 'sos_alert') {
         _showIncomingScreen(message.data);
       }
     });
 
-    // Xin quyền + lấy token — lỗi ở đây không ảnh hưởng background handler
+    // Xin quyền + lấy token
     try {
       await FirebaseMessaging.instance.requestPermission(
         alert: true,
@@ -86,6 +88,7 @@ class NotificationService {
       debugPrint('[FCM] Lay token that bai: $e');
     }
 
+    // App launch từ killed state do tap FCM notification
     try {
       final initial = await FirebaseMessaging.instance.getInitialMessage();
       if (initial != null && initial.data['type'] == 'sos_alert') {
@@ -109,11 +112,16 @@ class NotificationService {
     } catch (_) {}
   }
 
+  // Chạy trong background isolate khi app bị kill — phải tạo lại channel ở đây
   static Future<void> _showLocalNotification(Map<String, dynamic> data) async {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     await _localNotifs.initialize(
       const InitializationSettings(android: androidInit),
     );
+    await _localNotifs
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(_channel);
     await _showSOSNotification(data);
   }
 
@@ -125,7 +133,7 @@ class NotificationService {
       1001,
       '🚨 Cảnh báo ong bắp cày tấn công!',
       'Thùng "$hiveName" phát hiện $count con',
-      const NotificationDetails(
+      NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
           _channelName,
@@ -136,8 +144,12 @@ class NotificationService {
           visibility: NotificationVisibility.public,
           autoCancel: false,
           ongoing: false,
+          sound: _sosSound,
+          playSound: true,
         ),
       ),
+      // Payload chứa toàn bộ alert data để _onNotificationTapped có thể dùng
+      payload: jsonEncode(data),
     );
   }
 
@@ -145,13 +157,22 @@ class NotificationService {
       showSOSNotification(data);
 
   static void _onNotificationTapped(NotificationResponse response) {
-    // Delay nhỏ để router kịp mount sau khi app được bring to foreground
-    Future.delayed(const Duration(milliseconds: 300), () {
-      _showIncomingScreen(const {});
-    });
+    // Trường hợp app bị kill: _pendingAlert rỗng, lifecycle observer chưa đăng ký.
+    // Dùng payload để show screen. Delay 2s để router và auth kịp khởi động.
+    final payload = response.payload;
+    if (payload == null || payload.isEmpty) return;
+    try {
+      final data = Map<String, dynamic>.from(jsonDecode(payload) as Map);
+      Future.delayed(const Duration(seconds: 2), () {
+        _showIncomingScreen(data);
+      });
+    } catch (e) {
+      debugPrint('[Notif] Loi parse payload: $e');
+    }
   }
 
   static void _showIncomingScreen(Map<String, dynamic> data) {
+    if (SOSIncomingScreen.isShowing) return;
     final nav = AppRoutes.rootNavigatorKey.currentState;
     if (nav == null) return;
     nav.push(

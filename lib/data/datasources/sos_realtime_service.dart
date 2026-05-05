@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:vibration/vibration.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
@@ -17,7 +18,7 @@ import 'user_settings_service.dart';
 const _kDbUrl =
     'https://doan-hotronuoiong-default-rtdb.asia-southeast1.firebasedatabase.app';
 
-class SOSRealtimeService {
+class SOSRealtimeService with WidgetsBindingObserver {
   SOSRealtimeService._();
   static final SOSRealtimeService _instance = SOSRealtimeService._();
   factory SOSRealtimeService() => _instance;
@@ -31,6 +32,7 @@ class SOSRealtimeService {
   StreamSubscription<DatabaseEvent>? _subscription;
   int _lastAlertTime = 0; // ms — cooldown phía Flutter
   int _listenerStartTime = 0; // ms — mốc khi bắt đầu lắng nghe
+  Map<String, dynamic>? _pendingAlert; // alert nhận khi app ở background
 
   Function(Map<String, dynamic>)? onSOSReceived;
 
@@ -42,6 +44,7 @@ class SOSRealtimeService {
     }
 
     stopListening();
+    WidgetsBinding.instance.addObserver(this);
 
     // Mốc thời gian start listener — chỉ xử lý alert tạo SAU mốc này.
     // Alert cũ có sẵn trong DB (onChildAdded fire lại khi subscribe) sẽ bị bỏ qua.
@@ -81,7 +84,8 @@ class SOSRealtimeService {
         // App đang mở foreground — show màn hình trực tiếp
         _showIncomingScreen(alertData);
       } else {
-        // App ở background — show overlay toàn màn hình + local notification dự phòng
+        // App ở background — lưu lại để hiện khi user mở app
+        _pendingAlert = alertData;
         _showOverlay(alertData);
         NotificationService.showSOSNotification(alertData);
       }
@@ -118,6 +122,7 @@ class SOSRealtimeService {
   }
 
   void _showIncomingScreen(Map<String, dynamic> alert) {
+    if (SOSIncomingScreen.isShowing) return;
     final nav = AppRoutes.rootNavigatorKey.currentState;
     if (nav == null) return;
     nav.push(
@@ -138,9 +143,12 @@ class SOSRealtimeService {
 
   Future<void> _playAlarm() async {
     try {
-      await _player.play(AssetSource('audio/sos_alarm.wav'));
-      final duration = await UserSettingsService().getAlarmDuration();
-      Future.delayed(Duration(seconds: duration), stopAlarm);
+      await _player.setReleaseMode(ReleaseMode.loop);
+      await _player.play(AssetSource('audio/v1.mp3'));
+      final hasVibrator = await Vibration.hasVibrator() ?? false;
+      if (hasVibrator) {
+        Vibration.vibrate(pattern: [0, 800, 400, 800], repeat: 0);
+      }
     } catch (e) {
       debugPrint('[SOS] Loi phat am thanh: $e');
     }
@@ -149,6 +157,7 @@ class SOSRealtimeService {
   Future<void> stopAlarm() async {
     try {
       await _player.stop();
+      Vibration.cancel();
     } catch (e) {
       debugPrint('[SOS] Loi dung am thanh: $e');
     }
@@ -167,9 +176,23 @@ class SOSRealtimeService {
     }
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    if (state == AppLifecycleState.resumed && _pendingAlert != null) {
+      final alert = _pendingAlert!;
+      _pendingAlert = null;
+      // Delay nhỏ để router kịp mount sau khi app resume
+      await Future.delayed(const Duration(milliseconds: 400));
+      _showIncomingScreen(alert);
+      FlutterOverlayWindow.closeOverlay().catchError((_) {});
+    }
+  }
+
   void stopListening() {
     _subscription?.cancel();
     _subscription = null;
+    _pendingAlert = null;
+    WidgetsBinding.instance.removeObserver(this);
     debugPrint('[SOS] Dung lang nghe canh bao');
   }
 

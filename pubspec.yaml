@@ -43,6 +43,7 @@ dependencies:
   # Scanning & Audio
   mobile_scanner: ^6.0.0
   audioplayers: ^6.1.0
+  vibration: ^2.0.0
 
   # Image Picker
   image_picker: ^1.1.2

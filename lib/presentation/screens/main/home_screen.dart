@@ -282,7 +282,7 @@ class _HiveCard extends StatelessWidget {
     };
 
     return GestureDetector(
-      onTap: () => _showDetail(context),
+      onTap: () => context.push('/hive/$deviceId'),
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.card,
