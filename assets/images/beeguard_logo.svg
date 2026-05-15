@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+  <title>BeeGuard logo — color</title>
+  
+  <path d="M50 8 L86 28 L86 72 L50 92 L14 72 L14 28 Z" fill="#F5B400"></path>
+  
+  <g transform="translate(50 50)">
+    <rect x="-18" y="-10" width="36" height="20" rx="10" fill="#1A1A1A"></rect>
+    <rect x="-14" y="-10" width="6" height="20" fill="#F5B400"></rect>
+    <rect x="-2" y="-10" width="6" height="20" fill="#F5B400"></rect>
+    <rect x="10" y="-10" width="6" height="20" fill="#F5B400"></rect>
+    <ellipse cx="-6" cy="-14" rx="9" ry="5" fill="#F5B400" opacity="0.85"></ellipse>
+    <ellipse cx="6" cy="-14" rx="9" ry="5" fill="#F5B400" opacity="0.85"></ellipse>
+    <ellipse cx="-6" cy="-14" rx="9" ry="5" fill="none" stroke="#1A1A1A" stroke-width="1.2"></ellipse>
+    <ellipse cx="6" cy="-14" rx="9" ry="5" fill="none" stroke="#1A1A1A" stroke-width="1.2"></ellipse>
+  </g>
+</svg>

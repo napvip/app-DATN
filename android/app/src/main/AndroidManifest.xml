@@ -11,6 +11,11 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <!-- Overlay window (hiện UI đè lên app khác như call screen) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <!-- Lưu ảnh QR vào thư viện ảnh (gal package) -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION"/>
 
     <application
         android:label="BeeGuard"

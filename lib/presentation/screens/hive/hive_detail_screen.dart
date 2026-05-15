@@ -6,6 +6,8 @@ import 'package:firebase_database/firebase_database.dart';
 import '../../../config/app_colors.dart';
 import '../../../config/app_routes.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../widgets/device_control_card.dart';
+import 'device_qr_screen.dart';
 
 class HiveDetailScreen extends StatefulWidget {
   final String hiveId;
@@ -39,11 +41,30 @@ class _HiveDetailScreenState extends State<HiveDetailScreen> {
                     style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
+            actions: [
+              IconButton(
+                icon: const Icon(LucideIcons.qrCode),
+                tooltip: 'Xem mã QR thiết bị',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => DeviceQrScreen(deviceId: widget.hiveId),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
               child: _SensorCard(deviceId: widget.hiveId),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+              child: DeviceControlCard(deviceId: widget.hiveId),
             ),
           ),
         ],

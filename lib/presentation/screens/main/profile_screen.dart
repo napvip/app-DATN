@@ -465,10 +465,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               color: AppColors.primary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            child: const Icon(
-                              LucideIcons.hexagon,
-                              size: 32,
-                              color: AppColors.primary,
+                            child: Image.asset(
+                              'assets/images/beeguard_logo.png',
+                              width: 32,
+                              height: 32,
                             ),
                           ),
                           const SizedBox(height: 16),

@@ -303,10 +303,10 @@ class _HiveCard extends StatelessWidget {
                     color: AppColors.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Icon(
-                    LucideIcons.hexagon,
-                    size: 22,
-                    color: AppColors.primary,
+                  child: Image.asset(
+                    'assets/images/beeguard_logo.png',
+                    width: 22,
+                    height: 22,
                   ),
                 ),
                 Container(

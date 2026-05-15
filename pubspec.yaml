@@ -45,6 +45,11 @@ dependencies:
   audioplayers: ^6.1.0
   vibration: ^2.0.0
 
+  # QR generation + save to gallery
+  qr_flutter: ^4.1.0
+  gal: ^2.3.2
+  path_provider: ^2.1.4
+
   # Image Picker
   image_picker: ^1.1.2
 

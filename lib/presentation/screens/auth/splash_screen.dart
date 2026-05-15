@@ -108,15 +108,17 @@ class _SplashScreenState extends State<SplashScreen>
                       child: Opacity(
                         opacity: _fadeAnimation.value,
                         child: Container(
-                          padding: const EdgeInsets.all(32),
+                          padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(32),
                           ),
-                          child: const Icon(
-                            LucideIcons.hexagon,
-                            size: 80,
+                          child: Image.asset(
+                            'assets/images/beeguard_logo.png',
+                            width: 80,
+                            height: 80,
                             color: Colors.white,
+                            colorBlendMode: BlendMode.srcIn,
                           ),
                         ),
                       ),

@@ -108,15 +108,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   // ------- Logo -------
                   Center(
                     child: Container(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(24),
                       ),
-                      child: const Icon(
-                        LucideIcons.hexagon,
-                        size: 52,
-                        color: AppColors.primary,
+                      child: Image.asset(
+                        'assets/images/beeguard_logo.png',
+                        width: 64,
+                        height: 64,
                       ),
                     ),
                   ),
