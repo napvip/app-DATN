@@ -97,31 +97,31 @@ class _MainScreenState extends State<MainScreen> {
                 children: [
                   _NavItem(
                     icon: LucideIcons.home,
-                    label: 'Home',
+                    label: 'Trang chủ',
                     isSelected: selectedIndex == 0,
                     onTap: () => _onItemTapped(context, 0),
                   ),
                   _NavItem(
                     icon: LucideIcons.bell,
-                    label: 'Alerts',
+                    label: 'Cảnh báo',
                     isSelected: selectedIndex == 1,
                     onTap: () => _onItemTapped(context, 1),
                   ),
                   _NavItem(
-                    icon: LucideIcons.trendingUp,
-                    label: 'Insights',
+                    icon: LucideIcons.barChart3,
+                    label: 'Phân tích',
                     isSelected: selectedIndex == 2,
                     onTap: () => _onItemTapped(context, 2),
                   ),
                   _NavItem(
                     icon: LucideIcons.wrench,
-                    label: 'Maintenance',
+                    label: 'Bảo trì',
                     isSelected: selectedIndex == 3,
                     onTap: () => _onItemTapped(context, 3),
                   ),
                   _NavItem(
                     icon: LucideIcons.user,
-                    label: 'Profile',
+                    label: 'Tài khoản',
                     isSelected: selectedIndex == 4,
                     onTap: () => _onItemTapped(context, 4),
                   ),
@@ -150,37 +150,45 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isSelected)
-            Container(
-              width: 48,
-              height: 4,
+    final activeColor = AppColors.foreground;
+    final inactiveColor = AppColors.gray400;
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: isSelected ? 28 : 0,
+              height: 3,
               decoration: BoxDecoration(
                 color: AppColors.primary,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-          const SizedBox(height: 8),
-          Icon(
-            icon,
-            size: 24,
-            color: isSelected ? AppColors.primary : AppColors.mutedForeground,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: isSelected ? AppColors.primary : AppColors.mutedForeground,
-              fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
+            const SizedBox(height: 8),
+            Icon(
+              icon,
+              size: 22,
+              color: isSelected ? activeColor : inactiveColor,
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                color: isSelected ? activeColor : inactiveColor,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                letterSpacing: -0.1,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

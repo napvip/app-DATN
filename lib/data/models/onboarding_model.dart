@@ -16,26 +16,29 @@ class OnboardingModel {
 
   static List<OnboardingModel> get slides => [
         const OnboardingModel(
-          icon: LucideIcons.hexagon,
-          title: 'Monitor Your Hives Remotely',
+          icon: LucideIcons.shield,
+          title: 'Bảo vệ đàn ong 24/7',
           description:
-              'Keep track of all your beehives from anywhere. Get real-time updates on temperature, humidity, and honey production.',
+              'Cảm biến và camera tracker giám sát thùng ong liên tục, '
+              'phát hiện và cảnh báo ong bắp cày ngay khi xuất hiện.',
           imageUrl:
               'https://images.unsplash.com/photo-1569127971771-15d19a5ba26c?w=600',
         ),
         const OnboardingModel(
           icon: LucideIcons.camera,
-          title: 'AI Wasp Attack Detection',
+          title: 'Phát hiện ong bắp cày bằng AI',
           description:
-              'Advanced AI instantly detects wasp attacks and sends you alerts with captured images, so you can protect your bees immediately.',
+              'Mô hình YOLOv11 nhận diện ong bắp cày theo thời gian thực, '
+              'gửi cảnh báo SOS kèm ảnh tới điện thoại của bạn.',
           imageUrl:
               'https://images.unsplash.com/photo-1751167011495-074cf5f9ca66?w=600',
         ),
         const OnboardingModel(
-          icon: LucideIcons.trendingUp,
-          title: 'Smart Honey Production Analytics',
+          icon: LucideIcons.settings2,
+          title: 'Điều khiển từ xa qua điện thoại',
           description:
-              'Track honey production trends, analyze hive performance, and get AI-powered predictions for optimal beekeeping.',
+              'Bật/tắt camera, tracking, kết nối ESP32 và hiệu chỉnh thông '
+              'số mọi lúc — không cần đến tận nơi đặt thiết bị.',
           imageUrl:
               'https://images.unsplash.com/photo-1758522964459-403b982fb3c2?w=600',
         ),

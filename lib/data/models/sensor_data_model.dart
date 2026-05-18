@@ -1,14 +1,16 @@
 /// Model cho dữ liệu cảm biến từ ESP32 (qua Firebase RTDB).
 class SensorData {
-  final double? temperature;       // °C từ DHT22
-  final double? humidity;          // % từ DHT22
+  final double? temperature;       // °C từ DHT21
+  final double? humidity;          // % từ DHT21
   final double? waterDistanceCm;   // cm từ HC-SR05
+  final double? weightKg;          // kg từ 4× load cell + HX711
   final int? updatedAt;            // timestamp ms
 
   const SensorData({
     this.temperature,
     this.humidity,
     this.waterDistanceCm,
+    this.weightKg,
     this.updatedAt,
   });
 
@@ -19,6 +21,7 @@ class SensorData {
       // Hỗ trợ cả snake_case lẫn camelCase từ ESP32
       waterDistanceCm: _toDouble(
           map['water_distance_cm'] ?? map['waterDistanceCm'] ?? map['distance_cm']),
+      weightKg: _toDouble(map['weight_kg'] ?? map['weightKg']),
       updatedAt: _toInt(
           map['updated_at'] ?? map['updatedAt'] ?? map['timestamp']),
     );
@@ -52,7 +55,8 @@ class SensorData {
   }
 
   /// Kiểm tra có dữ liệu hợp lệ không.
-  bool get hasData => temperature != null || humidity != null || waterDistanceCm != null;
+  bool get hasData =>
+      temperature != null || humidity != null || waterDistanceCm != null || weightKg != null;
 
   /// Thời gian cập nhật dạng "vừa xong", "5 giây trước",...
   String get updatedAgo {

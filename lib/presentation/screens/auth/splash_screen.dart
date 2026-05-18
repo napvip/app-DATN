@@ -108,17 +108,22 @@ class _SplashScreenState extends State<SplashScreen>
                       child: Opacity(
                         opacity: _fadeAnimation.value,
                         child: Container(
-                          padding: const EdgeInsets.all(24),
+                          padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(32),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(28),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.12),
+                                blurRadius: 24,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
                           ),
                           child: Image.asset(
                             'assets/images/beeguard_logo.png',
-                            width: 80,
-                            height: 80,
-                            color: Colors.white,
-                            colorBlendMode: BlendMode.srcIn,
+                            width: 96,
+                            height: 96,
                           ),
                         ),
                       ),
@@ -142,7 +147,7 @@ class _SplashScreenState extends State<SplashScreen>
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              'Bao ve dan ong cua ban.',
+                              'Bảo vệ đàn ong của bạn.',
                               style: Theme.of(context)
                                   .textTheme
                                   .bodyLarge

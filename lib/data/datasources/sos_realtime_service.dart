@@ -176,6 +176,61 @@ class SOSRealtimeService with WidgetsBindingObserver {
     }
   }
 
+  /// Đánh dấu 1 alert đã đọc (không đổi status).
+  Future<void> markAsRead(String alertKey) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await _db
+          .ref('user_sos_alerts/$uid/$alertKey')
+          .update({'is_read': true});
+    } catch (e) {
+      debugPrint('[SOS] Loi mark read: $e');
+    }
+  }
+
+  /// Đánh dấu toàn bộ alert của user là đã đọc.
+  Future<void> markAllAsRead() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final ref = _db.ref('user_sos_alerts/$uid');
+      final snap = await ref.get();
+      if (!snap.exists || snap.value is! Map) return;
+      final updates = <String, Object?>{};
+      for (final e in (snap.value as Map).entries) {
+        if (e.value is Map && (e.value as Map)['is_read'] != true) {
+          updates['${e.key}/is_read'] = true;
+        }
+      }
+      if (updates.isNotEmpty) await ref.update(updates);
+    } catch (e) {
+      debugPrint('[SOS] Loi mark all read: $e');
+    }
+  }
+
+  /// Xóa 1 alert khỏi user_sos_alerts.
+  Future<void> deleteAlert(String alertKey) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await _db.ref('user_sos_alerts/$uid/$alertKey').remove();
+    } catch (e) {
+      debugPrint('[SOS] Loi xoa alert: $e');
+    }
+  }
+
+  /// Xóa toàn bộ alerts của user.
+  Future<void> deleteAllAlerts() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await _db.ref('user_sos_alerts/$uid').remove();
+    } catch (e) {
+      debugPrint('[SOS] Loi xoa tat ca alerts: $e');
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     if (state == AppLifecycleState.resumed && _pendingAlert != null) {

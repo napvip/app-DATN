@@ -31,19 +31,25 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
             children: [
               // Header
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Maintenance',
-                      style: Theme.of(context).textTheme.headlineLarge,
+                    const Text(
+                      'Bảo trì',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.foreground,
+                        letterSpacing: -0.3,
+                      ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
-                      'Manage device servicing & support',
+                      'Đặt lịch dịch vụ & hỗ trợ kỹ thuật',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: AppColors.mutedForeground,
+                            fontSize: 12,
                           ),
                     ),
                   ],
@@ -52,23 +58,23 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
 
               // Quick Actions
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
                     Expanded(
                       child: _QuickActionButton(
                         icon: LucideIcons.calendar,
-                        label: 'Book Service',
+                        label: 'Đặt lịch',
                         isPrimary: true,
                         onTap: () =>
                             context.push(AppRoutes.bookService),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: _QuickActionButton(
                         icon: LucideIcons.messageCircle,
-                        label: 'Live Chat',
+                        label: 'Hỗ trợ',
                         isPrimary: false,
                         onTap: () => context.push(AppRoutes.chat),
                       ),
@@ -95,7 +101,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
                     children: [
                       Expanded(
                         child: _TabButton(
-                          label: 'Upcoming',
+                          label: 'Sắp tới',
                           isSelected: _activeTab == 'upcoming',
                           onTap: () =>
                               setState(() => _activeTab = 'upcoming'),
@@ -103,7 +109,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
                       ),
                       Expanded(
                         child: _TabButton(
-                          label: 'History',
+                          label: 'Lịch sử',
                           isSelected: _activeTab == 'history',
                           onTap: () =>
                               setState(() => _activeTab = 'history'),

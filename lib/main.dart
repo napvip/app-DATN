@@ -8,6 +8,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'firebase_options.dart';
 import 'config/app_theme.dart';
 import 'config/app_routes.dart';
@@ -298,6 +300,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await dotenv.load(fileName: '.env');
+
+  // Init dữ liệu locale tiếng Việt cho intl/DateFormat (vd: 'd MMMM yyyy', 'vi')
+  await initializeDateFormatting('vi', null);
+  Intl.defaultLocale = 'vi';
 
   try {
     await Firebase.initializeApp(

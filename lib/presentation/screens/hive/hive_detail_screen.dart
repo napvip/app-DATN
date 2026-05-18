@@ -133,6 +133,7 @@ class _SensorCardState extends State<_SensorCard> {
         final temp = _d(map?['temperature']);
         final hum  = _d(map?['humidity']);
         final dist = _d(map?['water_distance_cm']);
+        final weight = _d(map?['weight_kg']);
         final ts   = _i(map?['updated_at']);
         final waterPct = dist == null
             ? 0.0
@@ -200,6 +201,8 @@ class _SensorCardState extends State<_SensorCard> {
                     color: AppColors.chart3,
                   )),
                 ]),
+                const SizedBox(height: 12),
+                _WeightTile(weightKg: weight),
                 const SizedBox(height: 12),
                 _WaterTile(distanceCm: dist, levelPercent: waterPct),
               ],
@@ -398,6 +401,49 @@ class _WaterTile extends StatelessWidget {
               ),
             ),
           ]),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Tile khối lượng mật ong ─────────────────────────────────────────────────
+
+class _WeightTile extends StatelessWidget {
+  final double? weightKg;
+
+  const _WeightTile({required this.weightKg});
+
+  Color get _color =>
+      weightKg == null ? AppColors.mutedForeground : AppColors.primary;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _color;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: c.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.scale, size: 18, color: c),
+          const SizedBox(width: 10),
+          const Text('Khối lượng mật ong',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.mutedForeground,
+                  fontWeight: FontWeight.w500)),
+          const Spacer(),
+          Text(
+            weightKg != null ? '${weightKg!.toStringAsFixed(2)} kg' : '-- kg',
+            style: Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(fontWeight: FontWeight.w700, color: c),
+          ),
         ],
       ),
     );

@@ -8,6 +8,7 @@ class AppButton extends StatelessWidget {
   final bool isOutlined;
   final IconData? icon;
   final double? width;
+  final double height;
 
   const AppButton({
     super.key,
@@ -17,55 +18,46 @@ class AppButton extends StatelessWidget {
     this.isOutlined = false,
     this.icon,
     this.width,
+    this.height = 48,
   });
 
   @override
   Widget build(BuildContext context) {
-    final child = Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (isLoading)
-          const SizedBox(
-            width: 20,
-            height: 20,
+    final fg = isOutlined ? AppColors.foreground : AppColors.primaryForeground;
+
+    final child = isLoading
+        ? SizedBox(
+            width: 18,
+            height: 18,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryForeground),
+              valueColor: AlwaysStoppedAnimation<Color>(fg),
             ),
           )
-        else ...[
-          Text(text),
-          if (icon != null) ...[
-            const SizedBox(width: 8),
-            Icon(icon, size: 20),
-          ],
-        ],
-      ],
-    );
-
-    if (isOutlined) {
-      return SizedBox(
-        width: width,
-        height: 56,
-        child: OutlinedButton(
-          onPressed: isLoading ? null : onPressed,
-          child: child,
-        ),
-      );
-    }
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 18),
+                const SizedBox(width: 8),
+              ],
+              Text(text),
+            ],
+          );
 
     return SizedBox(
       width: width,
-      height: 56,
-      child: ElevatedButton(
-        onPressed: isLoading ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          elevation: 0,
-          shadowColor: AppColors.primary.withValues(alpha: 0.4),
-        ),
-        child: child,
-      ),
+      height: height,
+      child: isOutlined
+          ? OutlinedButton(
+              onPressed: isLoading ? null : onPressed,
+              child: child,
+            )
+          : ElevatedButton(
+              onPressed: isLoading ? null : onPressed,
+              child: child,
+            ),
     );
   }
 }

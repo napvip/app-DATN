@@ -172,7 +172,13 @@ class _SOSIncomingScreenState extends State<SOSIncomingScreen>
                         onTap: () {
                           SOSRealtimeService().stopAlarm();
                           Navigator.of(context).pop();
-                          context.push(AppRoutes.sosAlert);
+                          final deviceId =
+                              (widget.alert['device_id'] as String?)?.trim() ?? '';
+                          if (deviceId.isNotEmpty) {
+                            context.push('/hive/$deviceId');
+                          } else {
+                            context.go(AppRoutes.alerts);
+                          }
                         },
                       ),
                     ),

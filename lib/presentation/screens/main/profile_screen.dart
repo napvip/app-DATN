@@ -1,13 +1,20 @@
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+
 import '../../../config/app_colors.dart';
 import '../../../config/app_routes.dart';
-import '../../../data/models/user_model.dart';
+import '../../../config/app_theme.dart';
 import '../../../data/datasources/auth_service.dart';
 import '../../../data/datasources/user_settings_service.dart';
-import '../../../core/widgets/app_card.dart';
+import '../../../data/models/user_model.dart';
+
+const _kDbUrl =
+    'https://doan-hotronuoiong-default-rtdb.asia-southeast1.firebasedatabase.app';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -19,6 +26,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _authService = AuthService();
   final _settings = UserSettingsService();
+
   UserModel? _user;
   bool _isLoading = true;
   int _alarmDuration = 30;
@@ -50,35 +58,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _signOut() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Đăng xuất'),
-        content: const Text('Bạn có chắc muốn đăng xuất không?'),
-        actions: [
-          TextButton(
-            onPressed: () => ctx.pop(false),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () => ctx.pop(true),
-            child: const Text(
-              'Đăng xuất',
-              style: TextStyle(color: AppColors.destructive),
-            ),
-          ),
-        ],
+  // ── Snackbar helpers ──────────────────────────────────────────────────────
+  void _showOk(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
       ),
     );
-
-    if (confirmed != true) return;
-
-    await _authService.signOut();
-    // Router tự redirect về /login nhờ refreshListenable
-    if (mounted) context.go(AppRoutes.login);
   }
 
+  void _showErr(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: AppColors.destructive,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
   Future<void> _editName() async {
     final controller = TextEditingController(text: _user?.name ?? '');
     final newName = await showDialog<String>(
@@ -88,11 +91,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'Nhập tên của bạn'),
+          decoration: const InputDecoration(
+            hintText: 'Tên hiển thị của bạn',
+          ),
         ),
         actions: [
           TextButton(onPressed: () => ctx.pop(), child: const Text('Hủy')),
-          TextButton(
+          ElevatedButton(
             onPressed: () => ctx.pop(controller.text.trim()),
             child: const Text('Lưu'),
           ),
@@ -102,40 +107,125 @@ class _ProfileScreenState extends State<ProfileScreen> {
     controller.dispose();
 
     if (newName == null || newName.isEmpty || newName == _user?.name) return;
-
     try {
       await _authService.updateUserName(newName);
       if (mounted) {
-        setState(() { _user = _user?.copyWith(name: newName); });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cập nhật tên thành công'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        setState(() => _user = _user?.copyWith(name: newName));
+        _showOk('Đã cập nhật tên');
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Cập nhật thất bại: $e'),
-            backgroundColor: AppColors.destructive,
-          ),
-        );
-      }
+      _showErr('Cập nhật thất bại: $e');
     }
   }
 
-  void _showNotificationSettings(BuildContext context) {
-    showModalBottomSheet(
+  Future<void> _pickAvatar() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 80,
+    );
+    if (picked == null) return;
+    if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(
+      content: Text('Đang tải ảnh lên...'),
+      duration: Duration(seconds: 10),
+    ));
+
+    try {
+      final bytes = await picked.readAsBytes();
+      final url = await _authService.uploadAvatar(bytes);
+      if (mounted) {
+        setState(() => _user = _user?.copyWith(photoUrl: url));
+        messenger.hideCurrentSnackBar();
+        _showOk('Đã cập nhật ảnh đại diện');
+      }
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      _showErr('Tải ảnh thất bại: $e');
+    }
+  }
+
+  Future<void> _resetPassword() async {
+    final email = (_user?.email ?? '').trim();
+    if (email.isEmpty) {
+      _showErr('Tài khoản không có email');
+      return;
+    }
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Đổi mật khẩu'),
+        content: Text(
+          'Hệ thống sẽ gửi liên kết đặt lại mật khẩu đến email '
+          '$email. Bạn chắc chứ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => ctx.pop(false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => ctx.pop(true),
+            child: const Text('Gửi'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      await _authService.sendPasswordResetEmail(email);
+      _showOk('Đã gửi liên kết đặt lại mật khẩu');
+    } catch (e) {
+      _showErr('Gửi thất bại: $e');
+    }
+  }
+
+  Future<void> _signOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Đăng xuất?'),
+        content: const Text(
+          'Bạn sẽ được đưa về màn hình đăng nhập. Dữ liệu trên thiết bị '
+          'không bị mất.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => ctx.pop(false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.destructive,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => ctx.pop(true),
+            child: const Text('Đăng xuất'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    await _authService.signOut();
+    if (mounted) context.go(AppRoutes.login);
+  }
+
+  void _openNotificationSettings() {
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => StatefulBuilder(
         builder: (ctx, setModal) {
-          String formatCooldown(int s) {
+          String fmt(int s) {
             if (s < 60) return '${s}s';
             final m = s ~/ 60;
             final rem = s % 60;
@@ -143,123 +233,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }
 
           return Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 16,
+              bottom: MediaQuery.of(ctx).viewPadding.bottom + 24,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.border,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+                const Text(
+                  'Cài đặt thông báo SOS',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.foreground,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Điều chỉnh khi nhận cảnh báo phát hiện ong bắp cày',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.mutedForeground,
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  'Cài đặt thông báo SOS',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 24),
-
-                // Alarm duration
-                Row(
-                  children: [
-                    const Icon(LucideIcons.bell, size: 18,
-                        color: AppColors.mutedForeground),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                        child: Text('Thời gian chuông',
-                            style: TextStyle(fontSize: 14))),
-                    Text(
-                      '${_alarmDuration}s',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    const Text('5s',
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.mutedForeground)),
-                    Expanded(
-                      child: Slider(
-                        value: _alarmDuration.toDouble(),
-                        min: 5,
-                        max: 120,
-                        divisions: 23,
-                        activeColor: AppColors.primary,
-                        onChanged: (v) async {
-                          final val = v.round();
-                          setModal(() {});
-                          setState(() => _alarmDuration = val);
-                          await _settings.setAlarmDuration(val);
-                        },
-                      ),
-                    ),
-                    const Text('120s',
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.mutedForeground)),
-                  ],
+                _SliderTile(
+                  icon: LucideIcons.bell,
+                  label: 'Thời gian chuông',
+                  valueLabel: '${_alarmDuration}s',
+                  min: 5,
+                  max: 120,
+                  divisions: 23,
+                  value: _alarmDuration.toDouble(),
+                  onChanged: (v) async {
+                    final val = v.round();
+                    setModal(() {});
+                    setState(() => _alarmDuration = val);
+                    await _settings.setAlarmDuration(val);
+                  },
                 ),
                 const SizedBox(height: 16),
-
-                // Alert cooldown
-                Row(
-                  children: [
-                    const Icon(LucideIcons.timer, size: 18,
-                        color: AppColors.mutedForeground),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                        child: Text('Tần suất cảnh báo',
-                            style: TextStyle(fontSize: 14))),
-                    Text(
-                      formatCooldown(_alertCooldown),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    const Text('3s',
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.mutedForeground)),
-                    Expanded(
-                      child: Slider(
-                        value: _alertCooldown.toDouble(),
-                        min: 3,
-                        max: 600,
-                        divisions: 199,
-                        activeColor: AppColors.primary,
-                        onChanged: (v) async {
-                          final val = v.round();
-                          setModal(() {});
-                          setState(() => _alertCooldown = val);
-                          await _settings.setAlertCooldown(val);
-                        },
-                      ),
-                    ),
-                    const Text('10p',
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.mutedForeground)),
-                  ],
+                _SliderTile(
+                  icon: LucideIcons.timer,
+                  label: 'Tần suất cảnh báo',
+                  valueLabel: fmt(_alertCooldown),
+                  min: 3,
+                  max: 600,
+                  divisions: 199,
+                  value: _alertCooldown.toDouble(),
+                  onChanged: (v) async {
+                    final val = v.round();
+                    setModal(() {});
+                    setState(() => _alertCooldown = val);
+                    await _settings.setAlertCooldown(val);
+                  },
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Sau ${formatCooldown(_alertCooldown)} kể từ cảnh báo trước, hệ thống mới cảnh báo tiếp.',
+                  'Sau ${fmt(_alertCooldown)} kể từ cảnh báo trước, hệ thống mới cảnh báo tiếp.',
                   style: const TextStyle(
-                      fontSize: 11, color: AppColors.mutedForeground),
+                    fontSize: 11,
+                    color: AppColors.mutedForeground,
+                  ),
                 ),
               ],
             ),
@@ -269,240 +308,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _pickAndUploadAvatar() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 512,
-      maxHeight: 512,
-      imageQuality: 80,
-    );
-    if (picked == null) return;
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đang tải ảnh lên...'),
-          duration: Duration(seconds: 10),
-        ),
-      );
-    }
-
-    try {
-      // Dùng readAsBytes() để hoạt động trên cả Mobile lẫn Web
-      final bytes = await picked.readAsBytes();
-      final url = await _authService.uploadAvatar(bytes);
-      if (mounted) {
-        setState(() { _user = _user?.copyWith(photoUrl: url); });
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cập nhật ảnh đại diện thành công'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Tải ảnh thất bại: $e'),
-            backgroundColor: AppColors.destructive,
-          ),
-        );
-      }
-    }
-  }
-
+  // ── UI ────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: SafeArea(
+        bottom: false,
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Hồ sơ',
-                            style: Theme.of(context).textTheme.headlineLarge,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Quản lý tài khoản và tùy chọn của bạn',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(color: AppColors.mutedForeground),
-                          ),
-                        ],
-                      ),
+                    const _Header(),
+                    const SizedBox(height: 16),
+                    _UserCard(
+                      user: _user,
+                      onEditAvatar: _pickAvatar,
+                      onEditName: _editName,
                     ),
-
-                    // User Card
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: _UserCard(
-                        user: _user,
-                        onEditAvatar: _pickAndUploadAvatar,
+                    const SizedBox(height: 24),
+                    _SectionLabel('Tài khoản'),
+                    const SizedBox(height: 8),
+                    _MenuGroup(items: [
+                      _MenuItemData(
+                        icon: LucideIcons.user,
+                        label: 'Tên hiển thị',
+                        trailingText: _user?.name ?? '—',
+                        onTap: _editName,
                       ),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Menu Sections
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        children: [
-                          _MenuSection(
-                            title: 'Tài khoản',
-                            items: [
-                              _MenuItem(
-                                icon: LucideIcons.user,
-                                label: 'Chỉnh sửa tên',
-                                value: _user?.name ?? '',
-                                onTap: _editName,
-                              ),
-                              _MenuItem(
-                                icon: LucideIcons.mail,
-                                label: 'Email',
-                                value: _user?.email ?? '',
-                                onTap: () {},
-                              ),
-                              _MenuItem(
-                                icon: LucideIcons.bell,
-                                label: 'Cài đặt thông báo',
-                                onTap: () => _showNotificationSettings(context),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                          _MenuSection(
-                            title: 'Tùy chọn',
-                            items: [
-                              _MenuItem(
-                                icon: LucideIcons.moon,
-                                label: 'Chế độ tối',
-                                hasToggle: true,
-                                toggleValue: false,
-                                onTap: () {},
-                              ),
-                              _MenuItem(
-                                icon: LucideIcons.globe,
-                                label: 'Ngôn ngữ',
-                                value: 'Tiếng Việt',
-                                onTap: () {},
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                          _MenuSection(
-                            title: 'Dữ liệu',
-                            items: [
-                              _MenuItem(
-                                icon: LucideIcons.download,
-                                label: 'Xuất dữ liệu (PDF/CSV)',
-                                onTap: () {},
-                              ),
-                            ],
-                          ),
-                        ],
+                      _MenuItemData(
+                        icon: LucideIcons.mail,
+                        label: 'Email',
+                        trailingText: _user?.email ?? '—',
+                        readOnly: true,
+                      ),
+                      _MenuItemData(
+                        icon: LucideIcons.key,
+                        label: 'Đổi mật khẩu',
+                        trailingText: 'Gửi email',
+                        onTap: _resetPassword,
+                      ),
+                    ]),
+                    const SizedBox(height: 24),
+                    _SectionLabel('Cảnh báo'),
+                    const SizedBox(height: 8),
+                    _MenuGroup(items: [
+                      _MenuItemData(
+                        icon: LucideIcons.bellRing,
+                        label: 'Cài đặt thông báo SOS',
+                        trailingText: '${_alarmDuration}s',
+                        onTap: _openNotificationSettings,
+                      ),
+                    ]),
+                    const SizedBox(height: 24),
+                    OutlinedButton.icon(
+                      onPressed: _signOut,
+                      icon: const Icon(LucideIcons.logOut, size: 18),
+                      label: const Text('Đăng xuất'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.destructive,
+                        side: const BorderSide(color: AppColors.destructive),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
                     const SizedBox(height: 32),
-
-                    // Nút đăng xuất
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: GestureDetector(
-                        onTap: _signOut,
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.card,
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                LucideIcons.logOut,
-                                size: 20,
-                                color: AppColors.destructive,
-                              ),
-                              SizedBox(width: 12),
-                              Text(
-                                'Đăng xuất',
-                                style: TextStyle(
-                                  color: AppColors.destructive,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // App Info
-                    Center(
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Image.asset(
-                              'assets/images/beeguard_logo.png',
-                              width: 32,
-                              height: 32,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'BeeGuard v1.0.0',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '© 2026 BeeGuard',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              TextButton(
-                                onPressed: () {},
-                                child: const Text('Chính sách bảo mật'),
-                              ),
-                              const Text(
-                                '|',
-                                style: TextStyle(color: AppColors.mutedForeground),
-                              ),
-                              TextButton(
-                                onPressed: () {},
-                                child: const Text('Điều khoản dịch vụ'),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 100),
+                    const _AppFooter(),
                   ],
                 ),
               ),
@@ -511,32 +385,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Widgets nội bộ
-// ---------------------------------------------------------------------------
+// ── Header ──────────────────────────────────────────────────────────────────
+class _Header extends StatelessWidget {
+  const _Header();
 
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Hồ sơ',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: AppColors.foreground,
+            letterSpacing: -0.3,
+          ),
+        ),
+        SizedBox(height: 2),
+        Text(
+          'Quản lý tài khoản và cài đặt cảnh báo',
+          style: TextStyle(
+            fontSize: 12,
+            color: AppColors.mutedForeground,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── User card (avatar + name + stats từ Firebase) ───────────────────────────
 class _UserCard extends StatelessWidget {
   final UserModel? user;
   final VoidCallback onEditAvatar;
+  final VoidCallback onEditName;
 
-  const _UserCard({required this.user, required this.onEditAvatar});
+  const _UserCard({
+    required this.user,
+    required this.onEditAvatar,
+    required this.onEditName,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primary.withValues(alpha: 0.1),
-            AppColors.primary.withValues(alpha: 0.05),
-            Colors.transparent,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         children: [
@@ -547,231 +446,466 @@ class _UserCard extends StatelessWidget {
                 child: Stack(
                   children: [
                     Container(
-                      width: 64,
-                      height: 64,
+                      width: 56,
+                      height: 56,
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.2),
+                        color: AppColors.secondary,
+                        border: Border.all(color: AppColors.border),
                         shape: BoxShape.circle,
                       ),
+                      clipBehavior: Clip.antiAlias,
                       child: (user?.photoUrl != null &&
                               user!.photoUrl.isNotEmpty)
-                          ? ClipOval(
-                              child: Image.network(
-                                user!.photoUrl,
-                                width: 64,
-                                height: 64,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Center(
-                                    child: Icon(
-                                      LucideIcons.user,
-                                      size: 32,
-                                      color: AppColors.primary,
-                                    ),
-                                  );
-                                },
-                                loadingBuilder:
-                                    (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return const Center(
-                                    child: SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: AppColors.primary,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
+                          ? Image.network(
+                              user!.photoUrl,
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  _initialFallback(user),
+                              loadingBuilder: (_, child, p) =>
+                                  p == null ? child : _initialFallback(user),
                             )
-                          : const Icon(
-                              LucideIcons.user,
-                              size: 32,
-                              color: AppColors.primary,
-                            ),
+                          : _initialFallback(user),
                     ),
                     Positioned(
-                      bottom: 0,
-                      right: 0,
+                      bottom: -2,
+                      right: -2,
                       child: Container(
                         padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: AppColors.primary,
+                        decoration: BoxDecoration(
+                          color: AppColors.foreground,
                           shape: BoxShape.circle,
+                          border:
+                              Border.all(color: AppColors.card, width: 2),
                         ),
-                        child: const Icon(
-                          LucideIcons.camera,
-                          size: 12,
-                          color: Colors.white,
-                        ),
+                        child: const Icon(LucideIcons.camera,
+                            size: 10, color: Colors.white),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       user?.name ?? 'Người dùng',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.foreground,
+                        letterSpacing: -0.2,
+                      ),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
-                      user?.email ?? '',
-                      style: Theme.of(context).textTheme.bodySmall,
+                      user?.email ?? '—',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.mutedForeground,
+                      ),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.only(top: 16),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+              IconButton(
+                onPressed: onEditName,
+                icon: const Icon(LucideIcons.pencil, size: 16),
+                style: IconButton.styleFrom(
+                  foregroundColor: AppColors.foreground,
+                  backgroundColor: AppColors.muted,
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppTheme.radiusFull),
+                  ),
                 ),
               ),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _StatItem(value: '0', label: 'Tổ ong'),
-                _StatItem(value: '0 kg', label: 'Mật ong'),
-                _StatItem(value: '--', label: 'Sức khỏe'),
-              ],
-            ),
+            ],
           ),
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 12),
+          _Stats(uid: fb_auth.FirebaseAuth.instance.currentUser?.uid),
+        ],
+      ),
+    );
+  }
+
+  Widget _initialFallback(UserModel? u) {
+    final n = (u?.name ?? u?.email ?? 'B').trim();
+    final initial =
+        n.isEmpty ? 'B' : n.characters.first.toUpperCase();
+    return Container(
+      width: 56,
+      height: 56,
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: const TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+          color: AppColors.foreground,
+        ),
+      ),
+    );
+  }
+}
+
+class _Stats extends StatelessWidget {
+  final String? uid;
+  const _Stats({required this.uid});
+
+  @override
+  Widget build(BuildContext context) {
+    if (uid == null) {
+      return const SizedBox.shrink();
+    }
+    return Row(
+      children: [
+        Expanded(child: _HiveCount(uid: uid!)),
+        Container(
+          width: 1,
+          height: 28,
+          color: AppColors.border,
+        ),
+        Expanded(child: _AlertCount(uid: uid!)),
+      ],
+    );
+  }
+}
+
+class _HiveCount extends StatelessWidget {
+  final String uid;
+  const _HiveCount({required this.uid});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DatabaseEvent>(
+      stream: FirebaseDatabase.instanceFor(
+        app: Firebase.app(),
+        databaseURL: _kDbUrl,
+      )
+          .ref('tracking_devices')
+          .orderByChild('owner_uid')
+          .equalTo(uid)
+          .onValue,
+      builder: (_, snap) {
+        int count = 0;
+        final v = snap.data?.snapshot.value;
+        if (v is Map) {
+          count = v.entries
+              .where((e) =>
+                  e.value is Map &&
+                  ((e.value as Map)['hive_name'] as String? ?? '')
+                      .isNotEmpty)
+              .length;
+        }
+        return _StatCell(value: '$count', label: 'Thùng ong');
+      },
+    );
+  }
+}
+
+class _AlertCount extends StatelessWidget {
+  final String uid;
+  const _AlertCount({required this.uid});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DatabaseEvent>(
+      stream: FirebaseDatabase.instanceFor(
+        app: Firebase.app(),
+        databaseURL: _kDbUrl,
+      ).ref('user_sos_alerts/$uid').onValue,
+      builder: (_, snap) {
+        int count = 0;
+        final v = snap.data?.snapshot.value;
+        if (v is Map) count = v.length;
+        return _StatCell(value: '$count', label: 'Cảnh báo');
+      },
+    );
+  }
+}
+
+class _StatCell extends StatelessWidget {
+  final String value;
+  final String label;
+  const _StatCell({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppColors.foreground,
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: AppColors.mutedForeground,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Menu ────────────────────────────────────────────────────────────────────
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  const _SectionLabel(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        label.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: AppColors.mutedForeground,
+          letterSpacing: 0.6,
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuItemData {
+  final IconData icon;
+  final String label;
+  final String? trailingText;
+  final VoidCallback? onTap;
+  final bool readOnly;
+  _MenuItemData({
+    required this.icon,
+    required this.label,
+    this.trailingText,
+    this.onTap,
+    this.readOnly = false,
+  });
+}
+
+class _MenuGroup extends StatelessWidget {
+  final List<_MenuItemData> items;
+  const _MenuGroup({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        border: Border.all(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            _MenuRow(item: items[i]),
+            if (i < items.length - 1)
+              const Padding(
+                padding: EdgeInsets.only(left: 52),
+                child: Divider(height: 1, color: AppColors.border),
+              ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _StatItem extends StatelessWidget {
-  final String value;
-  final String label;
-
-  const _StatItem({required this.value, required this.label});
+class _MenuRow extends StatelessWidget {
+  final _MenuItemData item;
+  const _MenuRow({required this.item});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(value, style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 4),
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
-      ],
+    final body = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: AppColors.muted,
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+            ),
+            alignment: Alignment.center,
+            child: Icon(item.icon,
+                size: 16, color: AppColors.foreground),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              item.label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.foreground,
+              ),
+            ),
+          ),
+          if (item.trailingText != null)
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Text(
+                  item.trailingText!,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.mutedForeground,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ),
+          if (!item.readOnly) ...[
+            const SizedBox(width: 6),
+            const Icon(LucideIcons.chevronRight,
+                size: 16, color: AppColors.gray400),
+          ],
+        ],
+      ),
     );
+
+    if (item.readOnly || item.onTap == null) return body;
+    return InkWell(onTap: item.onTap, child: body);
   }
 }
 
-class _MenuSection extends StatelessWidget {
-  final String title;
-  final List<_MenuItem> items;
+// ── Slider tile (cho bottom sheet) ──────────────────────────────────────────
+class _SliderTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String valueLabel;
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final ValueChanged<double> onChanged;
 
-  const _MenuSection({required this.title, required this.items});
+  const _SliderTile({
+    required this.icon,
+    required this.label,
+    required this.valueLabel,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 8, bottom: 12),
-          child: Text(title, style: Theme.of(context).textTheme.bodySmall),
+        Row(
+          children: [
+            Icon(icon, size: 14, color: AppColors.mutedForeground),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.mutedForeground,
+                ),
+              ),
+            ),
+            Text(
+              valueLabel,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.foreground,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ],
         ),
-        AppCard(
-          padding: EdgeInsets.zero,
-          child: Column(
-            children: items.asMap().entries.map((entry) {
-              final index = entry.key;
-              final item = entry.value;
-              return Column(
-                children: [
-                  item,
-                  if (index < items.length - 1)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Divider(height: 1),
-                    ),
-                ],
-              );
-            }).toList(),
-          ),
+        Slider(
+          value: value.clamp(min, max),
+          min: min,
+          max: max,
+          divisions: divisions,
+          activeColor: AppColors.primary,
+          onChanged: onChanged,
         ),
       ],
     );
   }
 }
 
-class _MenuItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String? value;
-  final bool hasToggle;
-  final bool toggleValue;
-  final VoidCallback onTap;
-
-  const _MenuItem({
-    required this.icon,
-    required this.label,
-    this.value,
-    this.hasToggle = false,
-    this.toggleValue = false,
-    required this.onTap,
-  });
+// ── App footer ──────────────────────────────────────────────────────────────
+class _AppFooter extends StatelessWidget {
+  const _AppFooter();
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: AppColors.mutedForeground),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
-            ),
-            if (hasToggle)
-              Switch(value: toggleValue, onChanged: (_) => onTap())
-            else
-              Row(
-                children: [
-                  if (value != null)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 120),
-                        child: Text(
-                          value!,
-                          style: Theme.of(context).textTheme.bodySmall,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  const Icon(
-                    LucideIcons.chevronRight,
-                    size: 20,
-                    color: AppColors.mutedForeground,
-                  ),
-                ],
-              ),
-          ],
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.secondary,
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Image.asset(
+            'assets/images/beeguard_logo.png',
+            width: 28,
+            height: 28,
+          ),
         ),
-      ),
+        const SizedBox(height: 10),
+        const Text(
+          'BeeGuard',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: AppColors.foreground,
+            letterSpacing: -0.2,
+          ),
+        ),
+        const SizedBox(height: 2),
+        const Text(
+          'Phiên bản 1.0.0',
+          style: TextStyle(
+            fontSize: 11,
+            color: AppColors.mutedForeground,
+          ),
+        ),
+        const SizedBox(height: 2),
+        const Text(
+          '© 2026 BeeGuard',
+          style: TextStyle(
+            fontSize: 11,
+            color: AppColors.mutedForeground,
+          ),
+        ),
+      ],
     );
   }
 }

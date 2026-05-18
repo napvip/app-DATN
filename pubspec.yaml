@@ -50,6 +50,9 @@ dependencies:
   gal: ^2.3.2
   path_provider: ^2.1.4
 
+  # SVG rendering (Google logo, illustrations)
+  flutter_svg: ^2.0.10+1
+
   # Image Picker
   image_picker: ^1.1.2
 
@@ -66,6 +69,33 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+
+  # Build-time generators for launcher icon + native splash
+  flutter_launcher_icons: ^0.14.1
+  flutter_native_splash: ^2.4.1
+
+# Sinh launcher icon Android/iOS từ assets có sẵn.
+# Chạy:  dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  remove_alpha_ios: true
+  min_sdk_android: 21
+  adaptive_icon_background: "#F5B400"
+  adaptive_icon_foreground: "assets/images/android_foreground.png"
+
+# Sinh native splash screen (hiển thị trước khi Flutter engine xong).
+# Chạy:  dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#F5B400"
+  image: "assets/images/beeguard_logo.png"
+  android_12:
+    color: "#F5B400"
+    image: "assets/images/beeguard_logo.png"
+  android: true
+  ios: true
+  web: false
 
 flutter:
   uses-material-design: true

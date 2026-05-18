@@ -2,22 +2,64 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+
 import '../../../config/app_colors.dart';
+import '../../../config/app_theme.dart';
 import '../../../core/widgets/cached_image.dart';
 import '../../../data/datasources/sos_realtime_service.dart';
-import '../../../data/models/alert_model.dart';
 
 const _kDbUrl =
     'https://doan-hotronuoiong-default-rtdb.asia-southeast1.firebasedatabase.app';
 
-// Cặp dữ liệu: model để render UI, raw để thực hiện action
-class _AlertEntry {
-  final AlertModel model;
-  final Map<String, dynamic> raw;
-  _AlertEntry(this.model, this.raw);
+// ── Models ──────────────────────────────────────────────────────────────────
+class _Alert {
+  final String key;
+  final String hiveName;
+  final String deviceId;
+  final int detectionCount;
+  final double confidence; // 0..1
+  final String? imageUrl;
+  final String status; // active | acknowledged | resolved
+  final bool isRead;
+  final DateTime createdAt;
+
+  _Alert({
+    required this.key,
+    required this.hiveName,
+    required this.deviceId,
+    required this.detectionCount,
+    required this.confidence,
+    required this.imageUrl,
+    required this.status,
+    required this.isRead,
+    required this.createdAt,
+  });
+
+  factory _Alert.from(String key, Map<String, dynamic> m) {
+    final ts = (m['created_at'] as int?) ?? 0;
+    return _Alert(
+      key: key,
+      hiveName: (m['hive_name'] as String?) ?? 'Thùng ong',
+      deviceId: (m['device_id'] as String?) ?? '',
+      detectionCount: (m['detection_count'] as int?) ?? 0,
+      confidence: ((m['confidence'] as num?)?.toDouble() ?? 0.0),
+      imageUrl: ((m['image_url'] as String?) ?? '').isEmpty
+          ? null
+          : m['image_url'] as String,
+      status: (m['status'] as String?) ?? 'active',
+      isRead: (m['is_read'] as bool?) ?? false,
+      createdAt: ts == 0
+          ? DateTime.fromMillisecondsSinceEpoch(0)
+          : DateTime.fromMillisecondsSinceEpoch(ts),
+    );
+  }
 }
 
+enum _TimeFilter { today, week, month, all }
+
+// ── Screen ──────────────────────────────────────────────────────────────────
 class AlertsScreen extends StatefulWidget {
   const AlertsScreen({super.key});
 
@@ -26,46 +68,15 @@ class AlertsScreen extends StatefulWidget {
 }
 
 class _AlertsScreenState extends State<AlertsScreen> {
-  String _filter = 'all';
-
-  // Map RTDB record → AlertModel để dùng lại design cũ
-  _AlertEntry _mapEntry(String key, Map<String, dynamic> data) {
-    final count = data['detection_count'] as int? ?? 0;
-    final confidence =
-        ((data['confidence'] as num?)?.toDouble() ?? 0) * 100;
-    final createdAt = data['created_at'] as int? ?? 0;
-    final imageUrl = (data['image_url'] as String? ?? '').trim();
-    final isRead = data['is_read'] as bool? ?? false;
-
-    final model = AlertModel(
-      id: key.hashCode,
-      type: AlertType.attack,
-      hive: data['hive_name'] as String? ?? 'Thùng ong',
-      title: 'Phát hiện ong bắp cày',
-      description:
-          'Phát hiện $count con · Độ tin cậy ${confidence.toStringAsFixed(0)}%',
-      time: _relativeTime(createdAt),
-      severity: count >= 3 ? AlertSeverity.high : AlertSeverity.medium,
-      imageUrl: imageUrl.isNotEmpty ? imageUrl : null,
-      isRead: isRead,
-    );
-    return _AlertEntry(model, {...data, 'key': key});
-  }
-
-  String _relativeTime(int ms) {
-    if (ms == 0) return '';
-    final diff = DateTime.now().millisecondsSinceEpoch - ms;
-    if (diff < 60000) return 'Vừa xong';
-    if (diff < 3600000) return '${diff ~/ 60000} phút trước';
-    if (diff < 86400000) return '${diff ~/ 3600000} giờ trước';
-    return '${diff ~/ 86400000} ngày trước';
-  }
+  _TimeFilter _time = _TimeFilter.all;
+  bool _onlyUnread = false;
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: user == null
           ? const Center(child: Text('Chưa đăng nhập'))
           : StreamBuilder<DatabaseEvent>(
@@ -73,128 +84,61 @@ class _AlertsScreenState extends State<AlertsScreen> {
                 app: Firebase.app(),
                 databaseURL: _kDbUrl,
               ).ref('user_sos_alerts/${user.uid}').onValue,
-              builder: (context, snapshot) {
-                // Map RTDB data → entries
-                List<_AlertEntry> entries = [];
-                if (snapshot.hasData &&
-                    snapshot.data!.snapshot.value != null) {
-                  final raw = Map<String, dynamic>.from(
-                    snapshot.data!.snapshot.value as Map,
-                  );
-                  entries = raw.entries
-                      .map((e) => _mapEntry(
-                            e.key,
-                            Map<String, dynamic>.from(e.value as Map),
-                          ))
-                      .toList()
-                    ..sort((a, b) =>
-                        ((b.raw['created_at'] as int?) ?? 0).compareTo(
-                          (a.raw['created_at'] as int?) ?? 0,
-                        ));
-                }
-
-                final filtered = _filter == 'unread'
-                    ? entries.where((e) => !e.model.isRead).toList()
-                    : entries;
-                final unreadCount =
-                    entries.where((e) => !e.model.isRead).length;
+              builder: (context, snap) {
+                final all = _parse(snap.data?.snapshot.value);
+                final unreadTotal = all.where((a) => !a.isRead).length;
+                final filtered = _applyFilter(all);
 
                 return SafeArea(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header — giữ nguyên design gốc
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Alerts',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineLarge,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '$unreadCount unread notification${unreadCount != 1 ? 's' : ''}',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                        color: AppColors.mutedForeground,
-                                      ),
-                                ),
-                              ],
-                            ),
-                            IconButton(
-                              onPressed: () {},
-                              icon: const Icon(
-                                LucideIcons.filter,
-                                color: AppColors.mutedForeground,
-                              ),
-                            ),
-                          ],
+                  bottom: false,
+                  child: CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: _Header(
+                          totalUnread: unreadTotal,
+                          hasItems: all.isNotEmpty,
+                          onMarkAll: () => SOSRealtimeService().markAllAsRead(),
+                          onDeleteAll: () => _confirmDeleteAll(context),
                         ),
                       ),
-
-                      // Filter Tabs — giữ nguyên
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: AppColors.muted,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _FilterTab(
-                                label: 'All',
-                                isSelected: _filter == 'all',
-                                onTap: () =>
-                                    setState(() => _filter = 'all'),
-                              ),
-                              _FilterTab(
-                                label: 'Unread ($unreadCount)',
-                                isSelected: _filter == 'unread',
-                                onTap: () =>
-                                    setState(() => _filter = 'unread'),
-                              ),
-                            ],
+                      SliverToBoxAdapter(
+                        child: _TimeFilterBar(
+                          selected: _time,
+                          counts: _countByTime(all),
+                          onChanged: (t) => setState(() => _time = t),
+                        ),
+                      ),
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                          child: _StatusToggle(
+                            onlyUnread: _onlyUnread,
+                            onChanged: (v) =>
+                                setState(() => _onlyUnread = v),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
-
-                      // Alerts List — giữ nguyên layout
-                      Expanded(
-                        child: snapshot.connectionState ==
-                                ConnectionState.waiting
-                            ? const Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColors.primary,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : filtered.isEmpty
-                                ? _EmptyState()
-                                : ListView.separated(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 24),
-                                    itemCount: filtered.length,
-                                    separatorBuilder: (_, __) =>
-                                        const SizedBox(height: 12),
-                                    itemBuilder: (context, index) {
-                                      return _AlertCard(
-                                          entry: filtered[index]);
-                                    },
-                                  ),
-                      ),
+                      if (snap.connectionState ==
+                              ConnectionState.waiting &&
+                          all.isEmpty)
+                        const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.all(48),
+                            child: Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          ),
+                        )
+                      else if (filtered.isEmpty)
+                        SliverToBoxAdapter(
+                          child: _EmptyState(
+                            hasAny: all.isNotEmpty,
+                          ),
+                        )
+                      else
+                        ..._buildGroupedSlivers(filtered),
+                      const SliverToBoxAdapter(child: SizedBox(height: 48)),
                     ],
                   ),
                 );
@@ -202,328 +146,758 @@ class _AlertsScreenState extends State<AlertsScreen> {
             ),
     );
   }
-}
 
-// ---------------------------------------------------------------------------
-// Filter Tab — giữ nguyên 100%
-// ---------------------------------------------------------------------------
-class _FilterTab extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
+  // ── data ──────────────────────────────────────────────────────────────────
+  List<_Alert> _parse(dynamic raw) {
+    if (raw is! Map) return const [];
+    try {
+      return raw.entries
+          .map<_Alert>((e) => _Alert.from(
+                e.key.toString(),
+                Map<String, dynamic>.from(e.value as Map),
+              ))
+          .toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    } catch (_) {
+      return const [];
+    }
+  }
 
-  const _FilterTab({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
+  List<_Alert> _applyFilter(List<_Alert> all) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    Iterable<_Alert> it = all;
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.card : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected
-                ? AppColors.foreground
-                : AppColors.mutedForeground,
-            fontWeight:
-                isSelected ? FontWeight.w500 : FontWeight.w400,
+    switch (_time) {
+      case _TimeFilter.today:
+        it = it.where((a) =>
+            a.createdAt.isAfter(today.subtract(const Duration(seconds: 1))));
+        break;
+      case _TimeFilter.week:
+        it = it.where((a) =>
+            a.createdAt.isAfter(today.subtract(const Duration(days: 7))));
+        break;
+      case _TimeFilter.month:
+        it = it.where((a) =>
+            a.createdAt.isAfter(today.subtract(const Duration(days: 30))));
+        break;
+      case _TimeFilter.all:
+        break;
+    }
+
+    if (_onlyUnread) {
+      it = it.where((a) => !a.isRead);
+    }
+
+    return it.toList();
+  }
+
+  Map<_TimeFilter, int> _countByTime(List<_Alert> all) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    int t = 0, w = 0, m = 0;
+    for (final a in all) {
+      if (a.createdAt.isAfter(today.subtract(const Duration(seconds: 1)))) {
+        t++;
+      }
+      if (a.createdAt.isAfter(today.subtract(const Duration(days: 7)))) {
+        w++;
+      }
+      if (a.createdAt.isAfter(today.subtract(const Duration(days: 30)))) {
+        m++;
+      }
+    }
+    return {
+      _TimeFilter.today: t,
+      _TimeFilter.week: w,
+      _TimeFilter.month: m,
+      _TimeFilter.all: all.length,
+    };
+  }
+
+  // ── grouping by date ──────────────────────────────────────────────────────
+  List<Widget> _buildGroupedSlivers(List<_Alert> alerts) {
+    final groups = <String, List<_Alert>>{};
+    for (final a in alerts) {
+      final key = _dateGroupKey(a.createdAt);
+      groups.putIfAbsent(key, () => []).add(a);
+    }
+
+    final slivers = <Widget>[];
+    for (final entry in groups.entries) {
+      slivers.add(SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          child: Text(
+            entry.key,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+              color: AppColors.mutedForeground,
+            ),
           ),
         ),
+      ));
+      slivers.add(SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (_, i) => Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+            child: _AlertCard(
+              alert: entry.value[i],
+              onTap: () => _openDetail(entry.value[i]),
+              onDelete: () => _confirmDelete(entry.value[i]),
+            ),
+          ),
+          childCount: entry.value.length,
+        ),
+      ));
+    }
+    return slivers;
+  }
+
+  String _dateGroupKey(DateTime d) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dDay = DateTime(d.year, d.month, d.day);
+    final diff = today.difference(dDay).inDays;
+    if (diff == 0) return 'HÔM NAY';
+    if (diff == 1) return 'HÔM QUA';
+    if (diff < 7) return DateFormat('EEEE', 'vi').format(d).toUpperCase();
+    return DateFormat("d 'tháng' M, yyyy", 'vi').format(d).toUpperCase();
+  }
+
+  // ── actions ───────────────────────────────────────────────────────────────
+  void _openDetail(_Alert a) {
+    // Đánh dấu đã đọc khi mở
+    if (!a.isRead) {
+      SOSRealtimeService().markAsRead(a.key);
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DetailSheet(
+        alert: a,
+        onAcknowledge: () => SOSRealtimeService().acknowledgeAlert(a.key),
+        onDelete: () => _confirmDelete(a, fromSheet: true),
       ),
     );
   }
-}
 
-// ---------------------------------------------------------------------------
-// Alert Card — giữ nguyên layout gốc, thêm "Xem chi tiết" ở dưới
-// ---------------------------------------------------------------------------
-class _AlertCard extends StatelessWidget {
-  final _AlertEntry entry;
-
-  const _AlertCard({required this.entry});
-
-  @override
-  Widget build(BuildContext context) {
-    final alert = entry.model;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: alert.isRead
-              ? AppColors.border
-              : AppColors.primary.withValues(alpha: 0.3),
+  void _confirmDelete(_Alert a, {bool fromSheet = false}) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xóa cảnh báo?'),
+        content: Text(
+          'Cảnh báo "${a.hiveName}" ngày ${DateFormat('d/M/y HH:mm').format(a.createdAt)} '
+          'sẽ bị xóa vĩnh viễn khỏi tài khoản của bạn.',
         ),
-        boxShadow: alert.isRead
-            ? null
-            : [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Icon or Image — giữ nguyên
-          if (alert.imageUrl != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: CachedImage(
-                imageUrl: alert.imageUrl!,
-                width: 64,
-                height: 64,
-              ),
-            )
-          else
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: alert.iconBackgroundColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(
-                alert.icon,
-                size: 28,
-                color: alert.iconColor,
-              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.destructive,
+              foregroundColor: Colors.white,
             ),
-          const SizedBox(width: 16),
-
-          // Content — giữ nguyên + thêm "Xem chi tiết"
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        alert.title,
-                        style:
-                            Theme.of(context).textTheme.titleMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (!alert.isRead)
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  alert.description,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.mutedForeground,
-                      ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text(
-                      alert.hive,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '•',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      alert.time,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-
-                // "Xem chi tiết" link
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () => _showDetail(context),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Xem chi tiết',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      const Icon(
-                        LucideIcons.chevronRight,
-                        size: 12,
-                        color: AppColors.primary,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              if (fromSheet && mounted) Navigator.pop(context);
+              await SOSRealtimeService().deleteAlert(a.key);
+            },
+            child: const Text('Xóa'),
           ),
         ],
       ),
     );
   }
 
-  void _showDetail(BuildContext context) {
-    showModalBottomSheet(
+  void _confirmDeleteAll(BuildContext context) {
+    showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _DetailSheet(entry: entry),
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xóa tất cả cảnh báo?'),
+        content: const Text(
+          'Toàn bộ cảnh báo sẽ bị xóa vĩnh viễn khỏi tài khoản. '
+          'Thao tác này không thể hoàn tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.destructive,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await SOSRealtimeService().deleteAllAlerts();
+            },
+            child: const Text('Xóa tất cả'),
+          ),
+        ],
+      ),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Detail Bottom Sheet — cùng style với card (bo tròn 24, màu AppColors)
-// ---------------------------------------------------------------------------
-class _DetailSheet extends StatelessWidget {
-  final _AlertEntry entry;
-  const _DetailSheet({required this.entry});
+// ── Header ──────────────────────────────────────────────────────────────────
+class _Header extends StatelessWidget {
+  final int totalUnread;
+  final bool hasItems;
+  final VoidCallback onMarkAll;
+  final VoidCallback onDeleteAll;
+  const _Header({
+    required this.totalUnread,
+    required this.hasItems,
+    required this.onMarkAll,
+    required this.onDeleteAll,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final alert = entry.model;
-    final raw = entry.raw;
-    final status = raw['status'] as String? ?? 'active';
-    final isActive = status == 'active';
-    final alertKey = raw['key'] as String? ?? '';
-    final deviceId = raw['device_id'] as String? ?? '';
-    final createdAt = raw['created_at'] as int? ?? 0;
-    final confidence =
-        ((raw['confidence'] as num?)?.toDouble() ?? 0) * 100;
-    final count = raw['detection_count'] as int? ?? 0;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Cảnh báo',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.foreground,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  totalUnread == 0
+                      ? 'Tất cả đã được đọc'
+                      : '$totalUnread cảnh báo chưa đọc',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.mutedForeground,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (hasItems)
+            PopupMenuButton<String>(
+              position: PopupMenuPosition.under,
+              icon: const Icon(LucideIcons.moreVertical,
+                  color: AppColors.foreground),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                side: const BorderSide(color: AppColors.border),
+              ),
+              color: AppColors.card,
+              onSelected: (v) {
+                if (v == 'read_all') onMarkAll();
+                if (v == 'delete_all') onDeleteAll();
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'read_all',
+                  enabled: totalUnread > 0,
+                  child: const Row(
+                    children: [
+                      Icon(LucideIcons.checkCheck,
+                          size: 16, color: AppColors.foreground),
+                      SizedBox(width: 10),
+                      Text('Đánh dấu tất cả đã đọc'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete_all',
+                  child: Row(
+                    children: [
+                      Icon(LucideIcons.trash2,
+                          size: 16, color: AppColors.destructive),
+                      SizedBox(width: 10),
+                      Text(
+                        'Xóa tất cả',
+                        style: TextStyle(color: AppColors.destructive),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
 
-    final dt = createdAt > 0
-        ? DateTime.fromMillisecondsSinceEpoch(createdAt)
-        : null;
-    final timeStr = dt != null
-        ? '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}  '
-            '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}'
-        : '—';
+// ── Time filter ─────────────────────────────────────────────────────────────
+class _TimeFilterBar extends StatelessWidget {
+  final _TimeFilter selected;
+  final Map<_TimeFilter, int> counts;
+  final ValueChanged<_TimeFilter> onChanged;
+  const _TimeFilterBar({
+    required this.selected,
+    required this.counts,
+    required this.onChanged,
+  });
+
+  static const _items = [
+    (_TimeFilter.today, 'Hôm nay'),
+    (_TimeFilter.week, '7 ngày'),
+    (_TimeFilter.month, '30 ngày'),
+    (_TimeFilter.all, 'Tất cả'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          for (final item in _items) ...[
+            _TimePill(
+              label: item.$2,
+              count: counts[item.$1] ?? 0,
+              selected: selected == item.$1,
+              onTap: () => onChanged(item.$1),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TimePill extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+  const _TimePill({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.foreground : AppColors.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+        side: BorderSide(
+            color: selected ? AppColors.foreground : AppColors.border),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+        onTap: onTap,
+        child: Padding(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: selected
+                      ? Colors.white
+                      : AppColors.foreground,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: selected
+                      ? Colors.white.withValues(alpha: 0.7)
+                      : AppColors.gray400,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Status toggle ───────────────────────────────────────────────────────────
+class _StatusToggle extends StatelessWidget {
+  final bool onlyUnread;
+  final ValueChanged<bool> onChanged;
+  const _StatusToggle(
+      {required this.onlyUnread, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Material(
+          color: onlyUnread ? AppColors.secondary : Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+            side: BorderSide(
+                color: onlyUnread
+                    ? AppColors.primary
+                    : AppColors.border),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+            onTap: () => onChanged(!onlyUnread),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    onlyUnread
+                        ? LucideIcons.checkSquare
+                        : LucideIcons.square,
+                    size: 14,
+                    color: onlyUnread
+                        ? AppColors.primary
+                        : AppColors.mutedForeground,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Chỉ hiển thị chưa đọc',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: onlyUnread
+                          ? AppColors.primary
+                          : AppColors.mutedForeground,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Alert card ──────────────────────────────────────────────────────────────
+class _AlertCard extends StatelessWidget {
+  final _Alert alert;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _AlertCard({
+    required this.alert,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dismissible(
+      key: ValueKey('alert-${alert.key}'),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) async {
+        onDelete();
+        return false; // chính xóa qua dialog confirm; không tự dismiss
+      },
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: AppColors.destructiveSoft,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        ),
+        child: const Icon(LucideIcons.trash2,
+            color: AppColors.destructive, size: 22),
+      ),
+      child: Material(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+              border: Border.all(color: AppColors.border),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _Thumbnail(alert: alert),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              alert.hiveName,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.foreground,
+                                letterSpacing: -0.1,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            DateFormat('HH:mm').format(alert.createdAt),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.mutedForeground,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (!alert.isRead) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              margin: const EdgeInsets.only(top: 5),
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Phát hiện ${alert.detectionCount} con ong bắp cày '
+                        '· Độ tin cậy ${(alert.confidence * 100).toStringAsFixed(0)}%',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.mutedForeground,
+                          height: 1.4,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          _StatusChip(status: alert.status),
+                          if (alert.detectionCount >= 3) ...[
+                            const SizedBox(width: 6),
+                            _SeverityChip(),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Thumbnail extends StatelessWidget {
+  final _Alert alert;
+  const _Thumbnail({required this.alert});
+
+  @override
+  Widget build(BuildContext context) {
+    if (alert.imageUrl != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        child: CachedImage(
+          imageUrl: alert.imageUrl!,
+          width: 56,
+          height: 56,
+        ),
+      );
+    }
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: AppColors.destructiveSoft,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+      ),
+      alignment: Alignment.center,
+      child: const Icon(LucideIcons.shieldAlert,
+          size: 22, color: AppColors.destructive),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final String status;
+  const _StatusChip({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg, label) = switch (status) {
+      'active' => (AppColors.destructiveSoft, AppColors.destructive,
+            'Đang cảnh báo'),
+      'acknowledged' => (AppColors.warningSoft, AppColors.warning, 'Đã xem'),
+      _ => (AppColors.successSoft, AppColors.success, 'Đã xử lý'),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: fg,
+        ),
+      ),
+    );
+  }
+}
+
+class _SeverityChip extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.gray100,
+        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+      ),
+      child: const Text(
+        'Nghiêm trọng',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: AppColors.gray700,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Detail bottom sheet ─────────────────────────────────────────────────────
+class _DetailSheet extends StatelessWidget {
+  final _Alert alert;
+  final VoidCallback onAcknowledge;
+  final VoidCallback onDelete;
+
+  const _DetailSheet({
+    required this.alert,
+    required this.onAcknowledge,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final timeStr =
+        DateFormat("d/M/yyyy '·' HH:mm", 'vi').format(alert.createdAt);
+    final isActive = alert.status == 'active';
 
     return Container(
       decoration: const BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        color: AppColors.card,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Handle
           Container(
-            margin: const EdgeInsets.only(top: 12, bottom: 4),
-            width: 40,
+            margin: const EdgeInsets.only(top: 10, bottom: 4),
+            width: 36,
             height: 4,
             decoration: BoxDecoration(
-              color: AppColors.border,
+              color: AppColors.gray300,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-
           Flexible(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title row
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          alert.title,
-                          style:
-                              Theme.of(context).textTheme.titleLarge,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Phát hiện ong bắp cày',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.foreground,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              alert.hiveName,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.mutedForeground,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      _StatusChip(status: status),
+                      _StatusChip(status: alert.status),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    alert.hive,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.mutedForeground,
-                        ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Detection image — cùng style bo tròn
+                  const SizedBox(height: 16),
                   if (alert.imageUrl != null) ...[
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: CachedImage(
-                        imageUrl: alert.imageUrl!,
-                        width: double.infinity,
-                        height: 200,
+                      borderRadius:
+                          BorderRadius.circular(AppTheme.radiusLg),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 10,
+                        child: CachedImage(
+                          imageUrl: alert.imageUrl!,
+                          width: double.infinity,
+                          height: double.infinity,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(LucideIcons.camera,
-                            size: 11,
-                            color: AppColors.mutedForeground),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Ảnh ghi nhận từ camera tracking',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(
-                                  color: AppColors.mutedForeground),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 14),
                   ],
-
-                  // Info grid — cùng màu card
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppColors.card,
-                      borderRadius: BorderRadius.circular(20),
+                      color: AppColors.background,
+                      borderRadius:
+                          BorderRadius.circular(AppTheme.radiusLg),
                       border: Border.all(color: AppColors.border),
                     ),
                     child: Column(
@@ -531,58 +905,79 @@ class _DetailSheet extends StatelessWidget {
                         _InfoRow(
                           icon: LucideIcons.alertTriangle,
                           label: 'Số lượng phát hiện',
-                          value: '$count ong bắp cày',
-                          iconColor: AppColors.destructive,
+                          value:
+                              '${alert.detectionCount} con ong bắp cày',
+                          color: AppColors.destructive,
                         ),
-                        const Divider(height: 20, color: AppColors.border),
+                        const Divider(
+                            height: 18, color: AppColors.border),
                         _InfoRow(
                           icon: LucideIcons.target,
                           label: 'Độ tin cậy',
-                          value: '${confidence.toStringAsFixed(0)}%',
-                          iconColor: AppColors.success,
+                          value:
+                              '${(alert.confidence * 100).toStringAsFixed(0)}%',
+                          color: AppColors.success,
                         ),
-                        const Divider(height: 20, color: AppColors.border),
+                        const Divider(
+                            height: 18, color: AppColors.border),
                         _InfoRow(
                           icon: LucideIcons.clock,
                           label: 'Thời gian',
                           value: timeStr,
-                          iconColor: AppColors.primary,
+                          color: AppColors.primary,
                         ),
-                        const Divider(height: 20, color: AppColors.border),
+                        const Divider(
+                            height: 18, color: AppColors.border),
                         _InfoRow(
                           icon: LucideIcons.cpu,
                           label: 'Thiết bị',
-                          value: deviceId,
-                          iconColor: AppColors.mutedForeground,
+                          value: alert.deviceId,
+                          color: AppColors.mutedForeground,
                           mono: true,
                         ),
                       ],
                     ),
                   ),
-
-                  if (isActive && alertKey.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: () {
-                          SOSRealtimeService()
-                              .acknowledgeAlert(alertKey);
-                          Navigator.pop(context);
-                        },
-                        icon: const Icon(LucideIcons.checkCircle,
-                            size: 16),
-                        label: const Text('Đánh dấu đã xử lý'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.success,
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            onDelete();
+                          },
+                          icon: const Icon(LucideIcons.trash2, size: 16),
+                          label: const Text('Xóa'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.destructive,
+                            side: const BorderSide(
+                                color: AppColors.destructive),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 2,
+                        child: FilledButton.icon(
+                          onPressed: isActive
+                              ? () {
+                                  onAcknowledge();
+                                  Navigator.pop(context);
+                                }
+                              : null,
+                          icon:
+                              const Icon(LucideIcons.checkCircle, size: 16),
+                          label: Text(
+                            isActive ? 'Đánh dấu đã xử lý' : 'Đã xử lý',
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.success,
+                            disabledBackgroundColor: AppColors.gray200,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -597,14 +992,13 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final Color iconColor;
+  final Color color;
   final bool mono;
-
   const _InfoRow({
     required this.icon,
     required this.label,
     required this.value,
-    required this.iconColor,
+    required this.color,
     this.mono = false,
   });
 
@@ -612,107 +1006,86 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 15, color: iconColor),
+        Icon(icon, size: 15, color: color),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
             label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.mutedForeground,
-                ),
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.mutedForeground,
+            ),
           ),
         ),
         Text(
           value,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                fontFamily: mono ? 'monospace' : null,
-              ),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.foreground,
+            fontFamily: mono ? 'monospace' : null,
+          ),
         ),
       ],
     );
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  final String status;
-  const _StatusChip({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final Color bg;
-    final Color fg;
-    final String label;
-
-    switch (status) {
-      case 'active':
-        bg = AppColors.destructive.withValues(alpha: 0.1);
-        fg = AppColors.destructive;
-        label = 'Đang cảnh báo';
-      case 'acknowledged':
-        bg = AppColors.warning.withValues(alpha: 0.1);
-        fg = AppColors.warning;
-        label = 'Đã xem';
-      default:
-        bg = AppColors.success.withValues(alpha: 0.1);
-        fg = AppColors.success;
-        label = 'Đã xử lý';
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: fg,
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Empty State — giữ nguyên 100%
-// ---------------------------------------------------------------------------
+// ── Empty state ─────────────────────────────────────────────────────────────
 class _EmptyState extends StatelessWidget {
+  final bool hasAny;
+  const _EmptyState({required this.hasAny});
+
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.muted.withValues(alpha: 0.5),
-              shape: BoxShape.circle,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: AppColors.muted,
+                borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(LucideIcons.bellOff,
+                  size: 22, color: AppColors.gray500),
             ),
-            child: const Icon(
-              LucideIcons.bell,
-              size: 48,
-              color: AppColors.mutedForeground,
+            const SizedBox(height: 14),
+            Text(
+              hasAny
+                  ? 'Không có cảnh báo nào khớp bộ lọc'
+                  : 'Chưa có cảnh báo nào',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.foreground,
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'No unread alerts',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "You're all caught up! We'll notify you\nof any new activity.",
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.mutedForeground,
-                ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              hasAny
+                  ? 'Thử đổi khoảng thời gian hoặc tắt bộ lọc'
+                  : 'Hệ thống sẽ thông báo khi phát hiện ong bắp cày',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.mutedForeground,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

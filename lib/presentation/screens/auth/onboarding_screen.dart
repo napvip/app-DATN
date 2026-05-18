@@ -55,11 +55,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 children: [
                   TextButton(
                     onPressed: _skip,
-                    child: Text(
-                      'Skip',
+                    child: const Text(
+                      'Bỏ qua',
                       style: TextStyle(
                         color: AppColors.mutedForeground,
-                        fontSize: 16,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -113,8 +114,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   // Next button
                   AppButton(
                     text: _currentPage == _slides.length - 1
-                        ? 'Get Started'
-                        : 'Continue',
+                        ? 'Bắt đầu'
+                        : 'Tiếp tục',
                     icon: LucideIcons.chevronRight,
                     onPressed: _nextPage,
                     width: double.infinity,

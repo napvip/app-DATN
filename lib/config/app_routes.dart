@@ -18,7 +18,6 @@ import '../presentation/screens/main/profile_screen.dart';
 import '../presentation/screens/main/book_service_screen.dart';
 import '../presentation/screens/main/service_detail_screen.dart';
 import '../presentation/screens/hive/hive_detail_screen.dart';
-import '../presentation/screens/hive/add_hive_screen.dart';
 import '../presentation/screens/main/chat_screen.dart';
 import '../presentation/screens/main/qr_scanner_screen.dart';
 import '../presentation/screens/main/sos_alert_screen.dart';
@@ -58,7 +57,6 @@ class AppRoutes {
   static const String maintenance = '/app/maintenance';
   static const String profile = '/app/profile';
   static const String hiveDetail = '/hive/:id';
-  static const String addHive = '/add-hive';
 
   // Maintenance feature routes
   static const String bookService = '/book-service';
@@ -175,11 +173,6 @@ class AppRoutes {
           return HiveDetailScreen(hiveId: id);
         },
       ),
-      GoRoute(
-        path: addHive,
-        builder: (context, state) => const AddHiveScreen(),
-      ),
-
       // -----------------------------------------------------------------------
       // Maintenance feature routes
       // -----------------------------------------------------------------------
