@@ -991,6 +991,15 @@ class _HiveCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _confirmRemove(context, deviceId, hiveName),
+                    child: const Padding(
+                      padding: EdgeInsets.only(left: 4),
+                      child: Icon(LucideIcons.trash2,
+                          size: 15, color: AppColors.destructive),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -1007,5 +1016,64 @@ class _HiveCard extends StatelessWidget {
     if (diff < 3600000) return '${diff ~/ 60000} phút trước';
     if (diff < 86400000) return '${diff ~/ 3600000} giờ trước';
     return '${diff ~/ 86400000} ngày trước';
+  }
+
+  Future<void> _confirmRemove(
+      BuildContext context, String deviceId, String hiveName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Gỡ thiết bị'),
+        content: Text(
+          'Gỡ "$hiveName" ($deviceId) khỏi tài khoản của bạn?\n\n'
+          'Thiết bị sẽ ngừng gửi cảnh báo về cho bạn. '
+          'Bạn có thể liên kết lại bất cứ lúc nào bằng cách quét QR của thiết bị.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => ctx.pop(false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppColors.destructive),
+            onPressed: () => ctx.pop(true),
+            child: const Text('Gỡ'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await _removeDevice(context, deviceId);
+  }
+
+  Future<void> _removeDevice(BuildContext context, String deviceId) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final db = FirebaseDatabase.instanceFor(
+      app: Firebase.app(),
+      databaseURL: _kDbUrl,
+    );
+    try {
+      // Gỡ liên kết: trả thiết bị về trạng thái chưa có chủ (record master vẫn
+      // còn để web quản lý + Jetson tiếp tục hoạt động), và xóa khỏi danh sách
+      // thiết bị của user. Có thể quét QR để liên kết lại.
+      await Future.wait([
+        db.ref('tracking_devices/$deviceId/owner_uid').set(''),
+        db.ref('tracking_devices/$deviceId/hive_name').set(''),
+        db.ref('user_devices/$uid/$deviceId').remove(),
+      ]);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã gỡ thiết bị khỏi tài khoản')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi gỡ thiết bị: $e')),
+        );
+      }
+    }
   }
 }

@@ -162,14 +162,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
     try {
       await Future.wait([
-        db.ref('tracking_devices/$deviceId').set({
+        // Dùng update() (không phải set()) để CHỈ gán quyền sở hữu — giữ nguyên
+        // status/last_seen/sensors/state mà thiết bị (Jetson) đang ghi lên.
+        db.ref('tracking_devices/$deviceId').update({
           'device_id': deviceId,
           'device_name': deviceName,
           'owner_uid': user.uid,
           'hive_name': hiveName,
-          'status': 'unregistered',
-          'created_at': now,
-          'last_seen': 0,
         }),
         db.ref('user_devices/${user.uid}/$deviceId').set({
           'device_id': deviceId,
