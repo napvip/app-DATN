@@ -155,6 +155,13 @@ class AuthService {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Chưa đăng nhập');
 
+    // Lấy ảnh avatar cũ để xoá sau khi đổi (nếu là ảnh Cloudinary)
+    String? oldUrl;
+    try {
+      final snap = await _firestore.collection('users').doc(user.uid).get();
+      oldUrl = snap.data()?['photoUrl'] as String?;
+    } catch (_) {}
+
     final downloadUrl =
         await CloudinaryService.uploadImage(imageBytes, folder: 'avatars');
 
@@ -166,6 +173,13 @@ class AuthService {
     try {
       await user.updatePhotoURL(downloadUrl);
     } catch (_) {}
+
+    // Xoá ảnh cũ trên Cloudinary (URL không phải Cloudinary sẽ tự bỏ qua)
+    if (oldUrl != null && oldUrl.isNotEmpty && oldUrl != downloadUrl) {
+      try {
+        await CloudinaryService.deleteImageByUrl(oldUrl);
+      } catch (_) {}
+    }
 
     return downloadUrl;
   }
