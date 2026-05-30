@@ -52,6 +52,50 @@ class CloudinaryService {
     return data['secure_url'] as String;
   }
 
+  /// Xoá ảnh trên Cloudinary theo secure_url (signed destroy).
+  /// Trả về true nếu xoá thành công hoặc ảnh đã không còn.
+  static Future<bool> deleteImageByUrl(String imageUrl) async {
+    if (_cloudName.isEmpty || imageUrl.isEmpty) return false;
+    final publicId = _publicIdFromUrl(imageUrl);
+    if (publicId == null) return false;
+
+    final uri = Uri.parse(
+      'https://api.cloudinary.com/v1_1/$_cloudName/image/destroy',
+    );
+    final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final paramsToSign = 'public_id=$publicId&timestamp=$timestamp$_apiSecret';
+    final signature = _generateSha1(paramsToSign);
+
+    try {
+      final response = await http.post(uri, body: {
+        'public_id': publicId,
+        'api_key': _apiKey,
+        'timestamp': timestamp.toString(),
+        'signature': signature,
+      });
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final result = data['result'];
+        return result == 'ok' || result == 'not found';
+      }
+      debugPrint('Cloudinary destroy error: ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Cloudinary destroy exception: $e');
+      return false;
+    }
+  }
+
+  /// Tách public_id từ secure_url.
+  /// Ví dụ: .../image/upload/v123/folder/name.jpg  ->  "folder/name"
+  static String? _publicIdFromUrl(String url) {
+    final match = RegExp(r'/upload/(?:v\d+/)?(.+)$').firstMatch(url);
+    if (match == null) return null;
+    final path = match.group(1)!;
+    final dot = path.lastIndexOf('.');
+    return dot > 0 ? path.substring(0, dot) : path;
+  }
+
   /// Tạo SHA1 hash đơn giản bằng Dart thuần (không cần package crypto).
   static String _generateSha1(String input) {
     // Sử dụng dart:convert SHA1

@@ -307,7 +307,12 @@ class _AlertsScreenState extends State<AlertsScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
               if (fromSheet && mounted) Navigator.pop(context);
-              await SOSRealtimeService().deleteAlert(a.key);
+              await SOSRealtimeService().deleteAlert(
+                a.key,
+                imageUrl: a.imageUrl,
+                deviceId: a.deviceId,
+                createdAt: a.createdAt.millisecondsSinceEpoch,
+              );
             },
             child: const Text('Xóa'),
           ),

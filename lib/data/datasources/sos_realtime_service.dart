@@ -12,6 +12,7 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
 import '../../config/app_routes.dart';
 import '../../presentation/screens/main/sos_incoming_screen.dart';
+import 'cloudinary_service.dart';
 import 'notification_service.dart';
 import 'user_settings_service.dart';
 
@@ -209,22 +210,88 @@ class SOSRealtimeService with WidgetsBindingObserver {
     }
   }
 
-  /// Xóa 1 alert khỏi user_sos_alerts.
-  Future<void> deleteAlert(String alertKey) async {
+  /// Xóa 1 cảnh báo VĨNH VIỄN: ảnh Cloudinary + bản admin (sos_alerts) + bản của user.
+  Future<void> deleteAlert(
+    String alertKey, {
+    String? imageUrl,
+    String? deviceId,
+    int? createdAt,
+  }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     try {
+      // 1) Xoá ảnh trên Cloudinary
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        await CloudinaryService.deleteImageByUrl(imageUrl);
+      }
+      // 2) Xoá bản ghi phía admin (sos_alerts) khớp cảnh báo này
+      await _deleteAdminAlerts(uid, imageUrl: imageUrl, deviceId: deviceId, createdAt: createdAt);
+      // 3) Xoá bản của user
       await _db.ref('user_sos_alerts/$uid/$alertKey').remove();
     } catch (e) {
       debugPrint('[SOS] Loi xoa alert: $e');
     }
   }
 
-  /// Xóa toàn bộ alerts của user.
+  /// Tìm & xoá các bản ghi sos_alerts (admin) của user khớp theo image_url
+  /// (ưu tiên) hoặc created_at + device_id.
+  Future<void> _deleteAdminAlerts(
+    String uid, {
+    String? imageUrl,
+    String? deviceId,
+    int? createdAt,
+  }) async {
+    try {
+      final snap =
+          await _db.ref('sos_alerts').orderByChild('owner_uid').equalTo(uid).get();
+      if (!snap.exists) return;
+      final data = Map<String, dynamic>.from(snap.value as Map? ?? {});
+      final toDelete = <String>[];
+      data.forEach((k, v) {
+        final m = Map<String, dynamic>.from(v as Map? ?? {});
+        final matchImg = imageUrl != null &&
+            imageUrl.isNotEmpty &&
+            m['image_url'] == imageUrl;
+        final matchMeta = createdAt != null &&
+            m['created_at'] == createdAt &&
+            (deviceId == null || m['device_id'] == deviceId);
+        if (matchImg || matchMeta) toDelete.add(k);
+      });
+      for (final k in toDelete) {
+        await _db.ref('sos_alerts/$k').remove();
+      }
+    } catch (e) {
+      debugPrint('[SOS] Loi xoa admin alert: $e');
+    }
+  }
+
+  /// Xóa toàn bộ cảnh báo của user (cả 2 bên + ảnh Cloudinary).
   Future<void> deleteAllAlerts() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     try {
+      // 1) Xoá ảnh Cloudinary của tất cả cảnh báo
+      final userSnap = await _db.ref('user_sos_alerts/$uid').get();
+      if (userSnap.exists) {
+        final data = Map<String, dynamic>.from(userSnap.value as Map? ?? {});
+        for (final v in data.values) {
+          final m = Map<String, dynamic>.from(v as Map? ?? {});
+          final img = m['image_url'] as String?;
+          if (img != null && img.isNotEmpty) {
+            await CloudinaryService.deleteImageByUrl(img);
+          }
+        }
+      }
+      // 2) Xoá toàn bộ bản admin của user
+      final adminSnap =
+          await _db.ref('sos_alerts').orderByChild('owner_uid').equalTo(uid).get();
+      if (adminSnap.exists) {
+        final data = Map<String, dynamic>.from(adminSnap.value as Map? ?? {});
+        for (final k in data.keys) {
+          await _db.ref('sos_alerts/$k').remove();
+        }
+      }
+      // 3) Xoá toàn bộ bản của user
       await _db.ref('user_sos_alerts/$uid').remove();
     } catch (e) {
       debugPrint('[SOS] Loi xoa tat ca alerts: $e');
