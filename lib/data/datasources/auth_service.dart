@@ -2,15 +2,14 @@ import 'dart:typed_data';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../models/user_model.dart';
+import 'cloudinary_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   // ---------------------------------------------------------------------------
   // Trạng thái auth
@@ -136,35 +135,37 @@ class AuthService {
   Future<void> updateUserName(String name) async {
     final user = _auth.currentUser;
     if (user == null) return;
+    final trimmed = name.trim();
 
-    await Future.wait([
-      _firestore
-          .collection('users')
-          .doc(user.uid)
-          .update({'name': name.trim()}),
-      user.updateDisplayName(name.trim()),
-    ]);
+    // Nguồn dữ liệu chính: Firestore users doc (set merge để không lỗi nếu doc thiếu)
+    await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .set({'name': trimmed}, SetOptions(merge: true));
+
+    // Cập nhật displayName của Auth là phụ — bỏ qua nếu lỗi (tránh lỗi cast Pigeon)
+    try {
+      await user.updateDisplayName(trimmed);
+    } catch (_) {}
   }
 
-  /// Upload avatar – nhận bytes để hoạt động trên cả Mobile lẫn Web.
+  /// Upload avatar – dùng Cloudinary (đồng bộ hạ tầng ảnh với app), nhận bytes
+  /// để chạy trên cả Mobile lẫn Web.
   Future<String> uploadAvatar(Uint8List imageBytes) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Chưa đăng nhập');
 
-    final ref = _storage.ref().child('avatars/${user.uid}.jpg');
-    final snapshot = await ref.putData(
-      imageBytes,
-      SettableMetadata(contentType: 'image/jpeg'),
-    );
-    final downloadUrl = await snapshot.ref.getDownloadURL();
+    final downloadUrl =
+        await CloudinaryService.uploadImage(imageBytes, folder: 'avatars');
 
-    await Future.wait([
-      _firestore
-          .collection('users')
-          .doc(user.uid)
-          .update({'photoUrl': downloadUrl}),
-      user.updatePhotoURL(downloadUrl),
-    ]);
+    await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .set({'photoUrl': downloadUrl}, SetOptions(merge: true));
+
+    try {
+      await user.updatePhotoURL(downloadUrl);
+    } catch (_) {}
 
     return downloadUrl;
   }
