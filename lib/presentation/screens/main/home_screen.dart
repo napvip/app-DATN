@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -246,20 +247,28 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-      child: StreamBuilder<User?>(
-        // userChanges() emit khi photoURL/displayName/email đổi
-        stream: FirebaseAuth.instance.userChanges(),
+      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        // Lấy tên + ảnh từ Firestore users (nguồn chính) — tránh bug userChanges() của firebase_auth
+        stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
         builder: (context, snap) {
-          final user = snap.data ?? FirebaseAuth.instance.currentUser;
-          final displayName = (user?.displayName ?? '').trim();
+          final data = snap.data?.data();
+          final cu = FirebaseAuth.instance.currentUser;
+          final fsName = (data?['name'] as String?)?.trim() ?? '';
+          final displayName =
+              fsName.isNotEmpty ? fsName : (cu?.displayName ?? '').trim();
           final firstName = displayName.isEmpty
               ? 'bạn'
               : displayName.split(' ').last;
-          final photoUrl = (user?.photoURL ?? '').trim();
+          final fsPhoto = (data?['photoUrl'] as String?)?.trim() ?? '';
+          final photoUrl =
+              fsPhoto.isNotEmpty ? fsPhoto : (cu?.photoURL ?? '').trim();
 
           return Row(
             children: [
-              _Avatar(photoUrl: photoUrl, user: user),
+              _Avatar(
+                photoUrl: photoUrl,
+                name: displayName.isEmpty ? (cu?.email ?? '') : displayName,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -298,14 +307,12 @@ class _Header extends StatelessWidget {
 
 class _Avatar extends StatelessWidget {
   final String photoUrl;
-  final User? user;
-  const _Avatar({required this.photoUrl, required this.user});
+  final String name;
+  const _Avatar({required this.photoUrl, required this.name});
 
   String get _initial {
-    final n = (user?.displayName ?? '').trim();
+    final n = name.trim();
     if (n.isNotEmpty) return n.characters.first.toUpperCase();
-    final e = (user?.email ?? '').trim();
-    if (e.isNotEmpty) return e.characters.first.toUpperCase();
     return 'B';
   }
 
