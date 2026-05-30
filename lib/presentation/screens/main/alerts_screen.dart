@@ -70,6 +70,13 @@ class AlertsScreen extends StatefulWidget {
 class _AlertsScreenState extends State<AlertsScreen> {
   _TimeFilter _time = _TimeFilter.all;
   bool _onlyUnread = false;
+  bool _selectMode = false;
+  final Set<String> _selectedKeys = {};
+
+  void _exitSelect() => setState(() {
+        _selectMode = false;
+        _selectedKeys.clear();
+      });
 
   @override
   Widget build(BuildContext context) {
@@ -94,31 +101,55 @@ class _AlertsScreenState extends State<AlertsScreen> {
                   child: CustomScrollView(
                     physics: const BouncingScrollPhysics(),
                     slivers: [
-                      SliverToBoxAdapter(
-                        child: _Header(
-                          totalUnread: unreadTotal,
-                          hasItems: all.isNotEmpty,
-                          onMarkAll: () => SOSRealtimeService().markAllAsRead(),
-                          onDeleteAll: () => _confirmDeleteAll(context),
-                        ),
-                      ),
-                      SliverToBoxAdapter(
-                        child: _TimeFilterBar(
-                          selected: _time,
-                          counts: _countByTime(all),
-                          onChanged: (t) => setState(() => _time = t),
-                        ),
-                      ),
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                          child: _StatusToggle(
-                            onlyUnread: _onlyUnread,
-                            onChanged: (v) =>
-                                setState(() => _onlyUnread = v),
+                      if (_selectMode)
+                        SliverToBoxAdapter(
+                          child: _SelectionBar(
+                            count: _selectedKeys.length,
+                            allSelected: filtered.isNotEmpty &&
+                                _selectedKeys.length == filtered.length,
+                            onCancel: _exitSelect,
+                            onToggleAll: () => setState(() {
+                              if (_selectedKeys.length == filtered.length) {
+                                _selectedKeys.clear();
+                              } else {
+                                _selectedKeys
+                                  ..clear()
+                                  ..addAll(filtered.map((a) => a.key));
+                              }
+                            }),
+                            onDelete: _selectedKeys.isEmpty
+                                ? null
+                                : () => _confirmDeleteSelected(all),
+                          ),
+                        )
+                      else ...[
+                        SliverToBoxAdapter(
+                          child: _Header(
+                            totalUnread: unreadTotal,
+                            hasItems: all.isNotEmpty,
+                            onMarkAll: () => SOSRealtimeService().markAllAsRead(),
+                            onDeleteAll: () => _confirmDeleteAll(context),
+                            onSelect: () => setState(() => _selectMode = true),
                           ),
                         ),
-                      ),
+                        SliverToBoxAdapter(
+                          child: _TimeFilterBar(
+                            selected: _time,
+                            counts: _countByTime(all),
+                            onChanged: (t) => setState(() => _time = t),
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                            child: _StatusToggle(
+                              onlyUnread: _onlyUnread,
+                              onChanged: (v) =>
+                                  setState(() => _onlyUnread = v),
+                            ),
+                          ),
+                        ),
+                      ],
                       if (snap.connectionState ==
                               ConnectionState.waiting &&
                           all.isEmpty)
@@ -245,7 +276,21 @@ class _AlertsScreenState extends State<AlertsScreen> {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
             child: _AlertCard(
               alert: entry.value[i],
+              selectMode: _selectMode,
+              selected: _selectedKeys.contains(entry.value[i].key),
               onTap: () => _openDetail(entry.value[i]),
+              onToggleSelect: () => setState(() {
+                final k = entry.value[i].key;
+                if (_selectedKeys.contains(k)) {
+                  _selectedKeys.remove(k);
+                } else {
+                  _selectedKeys.add(k);
+                }
+              }),
+              onLongPress: () => setState(() {
+                _selectMode = true;
+                _selectedKeys.add(entry.value[i].key);
+              }),
               onDelete: () => _confirmDelete(entry.value[i]),
             ),
           ),
@@ -350,6 +395,47 @@ class _AlertsScreenState extends State<AlertsScreen> {
       ),
     );
   }
+
+  void _confirmDeleteSelected(List<_Alert> all) {
+    final targets = all.where((a) => _selectedKeys.contains(a.key)).toList();
+    if (targets.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Xóa ${targets.length} cảnh báo?'),
+        content: const Text(
+          'Các cảnh báo đã chọn (kèm ảnh) sẽ bị xóa vĩnh viễn. '
+          'Thao tác này không thể hoàn tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.destructive,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final svc = SOSRealtimeService();
+              for (final a in targets) {
+                await svc.deleteAlert(
+                  a.key,
+                  imageUrl: a.imageUrl,
+                  deviceId: a.deviceId,
+                  createdAt: a.createdAt.millisecondsSinceEpoch,
+                );
+              }
+              if (mounted) _exitSelect();
+            },
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── Header ──────────────────────────────────────────────────────────────────
@@ -358,11 +444,13 @@ class _Header extends StatelessWidget {
   final bool hasItems;
   final VoidCallback onMarkAll;
   final VoidCallback onDeleteAll;
+  final VoidCallback onSelect;
   const _Header({
     required this.totalUnread,
     required this.hasItems,
     required this.onMarkAll,
     required this.onDeleteAll,
+    required this.onSelect,
   });
 
   @override
@@ -411,6 +499,7 @@ class _Header extends StatelessWidget {
               onSelected: (v) {
                 if (v == 'read_all') onMarkAll();
                 if (v == 'delete_all') onDeleteAll();
+                if (v == 'select') onSelect();
               },
               itemBuilder: (_) => [
                 PopupMenuItem(
@@ -422,6 +511,17 @@ class _Header extends StatelessWidget {
                           size: 16, color: AppColors.foreground),
                       SizedBox(width: 10),
                       Text('Đánh dấu tất cả đã đọc'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'select',
+                  child: Row(
+                    children: [
+                      Icon(Icons.checklist,
+                          size: 16, color: AppColors.foreground),
+                      SizedBox(width: 10),
+                      Text('Chọn để xóa'),
                     ],
                   ),
                 ),
@@ -441,6 +541,63 @@ class _Header extends StatelessWidget {
                 ),
               ],
             ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Selection bar (chế độ chọn nhiều để xóa) ─────────────────────────────────
+class _SelectionBar extends StatelessWidget {
+  final int count;
+  final bool allSelected;
+  final VoidCallback onCancel;
+  final VoidCallback onToggleAll;
+  final VoidCallback? onDelete;
+  const _SelectionBar({
+    required this.count,
+    required this.allSelected,
+    required this.onCancel,
+    required this.onToggleAll,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 12, 12, 8),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: onCancel,
+            icon: const Icon(Icons.close, color: AppColors.foreground),
+            tooltip: 'Hủy',
+          ),
+          Expanded(
+            child: Text(
+              count == 0 ? 'Chọn cảnh báo' : 'Đã chọn $count',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.foreground,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: onToggleAll,
+            child: Text(allSelected ? 'Bỏ chọn' : 'Chọn tất cả'),
+          ),
+          const SizedBox(width: 4),
+          ElevatedButton.icon(
+            onPressed: onDelete,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.destructive,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: AppColors.destructiveSoft,
+            ),
+            icon: const Icon(LucideIcons.trash2, size: 16),
+            label: const Text('Xóa'),
+          ),
         ],
       ),
     );
@@ -608,50 +765,58 @@ class _StatusToggle extends StatelessWidget {
 // ── Alert card ──────────────────────────────────────────────────────────────
 class _AlertCard extends StatelessWidget {
   final _Alert alert;
+  final bool selectMode;
+  final bool selected;
   final VoidCallback onTap;
+  final VoidCallback onToggleSelect;
+  final VoidCallback onLongPress;
   final VoidCallback onDelete;
 
   const _AlertCard({
     required this.alert,
     required this.onTap,
     required this.onDelete,
+    required this.onToggleSelect,
+    required this.onLongPress,
+    this.selectMode = false,
+    this.selected = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Dismissible(
-      key: ValueKey('alert-${alert.key}'),
-      direction: DismissDirection.endToStart,
-      confirmDismiss: (_) async {
-        onDelete();
-        return false; // chính xóa qua dialog confirm; không tự dismiss
-      },
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(
-          color: AppColors.destructiveSoft,
-          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-        ),
-        child: const Icon(LucideIcons.trash2,
-            color: AppColors.destructive, size: 22),
-      ),
-      child: Material(
-        color: AppColors.card,
+    final card = Material(
+      color: selected
+          ? AppColors.primary.withValues(alpha: 0.06)
+          : AppColors.card,
+      borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+      child: InkWell(
+        onTap: selectMode ? onToggleSelect : onTap,
+        onLongPress: selectMode ? null : onLongPress,
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-              border: Border.all(color: AppColors.border),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.border,
+              width: selected ? 1.5 : 1.0,
             ),
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _Thumbnail(alert: alert),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (selectMode) ...[
+                Icon(
+                  selected
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  color:
+                      selected ? AppColors.primary : AppColors.mutedForeground,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+              ],
+              _Thumbnail(alert: alert),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -725,7 +890,28 @@ class _AlertCard extends StatelessWidget {
             ),
           ),
         ),
+      );
+
+    if (selectMode) return card;
+
+    return Dismissible(
+      key: ValueKey('alert-${alert.key}'),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) async {
+        onDelete();
+        return false; // chính xóa qua dialog confirm; không tự dismiss
+      },
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: AppColors.destructiveSoft,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        ),
+        child: const Icon(LucideIcons.trash2,
+            color: AppColors.destructive, size: 22),
       ),
+      child: card,
     );
   }
 }
