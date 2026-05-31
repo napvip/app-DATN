@@ -3,10 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Trạng thái đơn bảo trì – dùng int code để admin web dễ xử lý.
 /// 0 = Pending  |  1 = Processing  |  2 = Completed  |  3 = Cancelled
 enum ServiceStatus {
-  pending(0, 'Pending'),
-  processing(1, 'Processing'),
-  completed(2, 'Completed'),
-  cancelled(3, 'Cancelled');
+  pending(0, 'Chờ xử lý'),
+  processing(1, 'Đang xử lý'),
+  completed(2, 'Hoàn thành'),
+  cancelled(3, 'Đã huỷ');
 
   final int code;
   final String label;
@@ -22,8 +22,8 @@ enum ServiceStatus {
 
 /// Loại dịch vụ: Bảo trì / Sửa chữa
 enum ServiceType {
-  maintenance(0, 'Maintenance'),
-  repair(1, 'Repair');
+  maintenance(0, 'Bảo trì'),
+  repair(1, 'Sửa chữa');
 
   final int code;
   final String label;
@@ -39,10 +39,10 @@ enum ServiceType {
 
 /// Mức độ ưu tiên
 enum ServicePriority {
-  low(0, 'Low'),
-  medium(1, 'Medium'),
-  high(2, 'High'),
-  urgent(3, 'Urgent');
+  low(0, 'Thấp'),
+  medium(1, 'Trung bình'),
+  high(2, 'Cao'),
+  urgent(3, 'Khẩn cấp');
 
   final int code;
   final String label;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../../config/app_colors.dart';
@@ -8,6 +9,9 @@ import '../../../config/app_routes.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../widgets/device_control_card.dart';
 import 'device_qr_screen.dart';
+
+const _kDbUrl =
+    'https://doan-hotronuoiong-default-rtdb.asia-southeast1.firebasedatabase.app';
 
 class HiveDetailScreen extends StatefulWidget {
   final String hiveId;
@@ -63,13 +67,96 @@ class _HiveDetailScreenState extends State<HiveDetailScreen> {
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
               child: DeviceControlCard(deviceId: widget.hiveId),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 40),
+              child: ElevatedButton.icon(
+                onPressed: _confirmRemove,
+                icon: const Icon(LucideIcons.trash2, size: 18),
+                label: const Text('Gỡ thiết bị khỏi tài khoản'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.destructiveSoft,
+                  foregroundColor: AppColors.destructive,
+                  iconColor: AppColors.destructive,
+                  elevation: 0,
+                  minimumSize: const Size.fromHeight(50),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _confirmRemove() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Gỡ thiết bị'),
+        content: Text(
+          'Gỡ thiết bị "${widget.hiveId}" khỏi tài khoản của bạn?\n\n'
+          'Thiết bị sẽ ngừng gửi cảnh báo về cho bạn. '
+          'Bạn có thể liên kết lại bất cứ lúc nào bằng cách quét QR của thiết bị.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => ctx.pop(false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.destructive),
+            onPressed: () => ctx.pop(true),
+            child: const Text('Gỡ'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await _removeDevice();
+  }
+
+  Future<void> _removeDevice() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final db = FirebaseDatabase.instanceFor(
+      app: Firebase.app(),
+      databaseURL: _kDbUrl,
+    );
+    try {
+      // Gỡ liên kết: trả thiết bị về trạng thái chưa có chủ (record master vẫn
+      // còn để web quản lý + Jetson tiếp tục hoạt động), và xóa khỏi danh sách
+      // thiết bị của user. Có thể quét QR để liên kết lại.
+      await Future.wait([
+        db.ref('tracking_devices/${widget.hiveId}/owner_uid').set(''),
+        db.ref('tracking_devices/${widget.hiveId}/hive_name').set(''),
+        db.ref('user_devices/$uid/${widget.hiveId}').remove(),
+      ]);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã gỡ thiết bị khỏi tài khoản')),
+        );
+        context.go(AppRoutes.main);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi gỡ thiết bị: $e')),
+        );
+      }
+    }
   }
 }
 
@@ -202,7 +289,7 @@ class _SensorCardState extends State<_SensorCard> {
                   )),
                 ]),
                 const SizedBox(height: 12),
-                _WeightTile(weightKg: weight),
+                _WeightTile(deviceId: widget.deviceId, weightKg: weight),
                 const SizedBox(height: 12),
                 _WaterTile(distanceCm: dist, levelPercent: waterPct),
               ],
@@ -410,42 +497,152 @@ class _WaterTile extends StatelessWidget {
 // ── Tile khối lượng mật ong ─────────────────────────────────────────────────
 
 class _WeightTile extends StatelessWidget {
-  final double? weightKg;
+  final String deviceId;
+  final double? weightKg; // tổng cân nặng đo được (mật + thùng)
 
-  const _WeightTile({required this.weightKg});
+  const _WeightTile({required this.deviceId, required this.weightKg});
 
-  Color get _color =>
-      weightKg == null ? AppColors.mutedForeground : AppColors.primary;
+  DatabaseReference get _tareRef => FirebaseDatabase.instanceFor(
+        app: Firebase.app(),
+        databaseURL: _kDbUrl,
+      ).ref('tracking_devices/$deviceId/hive_tare_kg');
 
-  @override
-  Widget build(BuildContext context) {
-    final c = _color;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: c.withValues(alpha: 0.15)),
-      ),
-      child: Row(
-        children: [
-          Icon(LucideIcons.scale, size: 18, color: c),
-          const SizedBox(width: 10),
-          const Text('Khối lượng mật ong',
+  static double? _num(dynamic v) {
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v);
+    return null;
+  }
+
+  Future<void> _editTare(BuildContext context, double? current) async {
+    final ctrl = TextEditingController(
+        text: current != null ? current.toStringAsFixed(2) : '');
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Khối lượng thùng ong'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Nhập khối lượng thùng khi chưa có mật (kg). Giá trị này được '
+              'trừ khỏi tổng cân nặng để tính ra lượng mật.',
               style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.mutedForeground,
-                  fontWeight: FontWeight.w500)),
-          const Spacer(),
-          Text(
-            weightKg != null ? '${weightKg!.toStringAsFixed(2)} kg' : '-- kg',
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w700, color: c),
+                  fontSize: 13, color: AppColors.mutedForeground),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                suffixText: 'kg',
+                hintText: 'VD: 5.0',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Lưu'),
           ),
         ],
       ),
+    );
+    if (saved != true) return;
+    final txt = ctrl.text.trim().replaceAll(',', '.');
+    final val = double.tryParse(txt);
+    try {
+      if (txt.isEmpty || val == null) {
+        await _tareRef.remove();
+      } else {
+        await _tareRef.set(val);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DatabaseEvent>(
+      stream: _tareRef.onValue,
+      builder: (context, snap) {
+        final tare = _num(snap.data?.snapshot.value);
+        final hasTotal = weightKg != null;
+        final honey = (hasTotal && tare != null)
+            ? (weightKg! - tare).clamp(0.0, double.infinity)
+            : null;
+        final c = hasTotal ? AppColors.primary : AppColors.mutedForeground;
+
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: c.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: c.withValues(alpha: 0.15)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(LucideIcons.scale, size: 16, color: c),
+                  const SizedBox(width: 6),
+                  const Text('Khối lượng mật ong',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.mutedForeground,
+                          fontWeight: FontWeight.w500)),
+                  const Spacer(),
+                  InkWell(
+                    onTap: () => _editTare(context, tare),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Row(
+                        children: [
+                          Icon(LucideIcons.pencil, size: 12, color: c),
+                          const SizedBox(width: 4),
+                          Text(
+                            tare != null ? 'Sửa thùng' : 'Đặt thùng',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: c,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                honey != null ? '${honey.toStringAsFixed(2)} kg' : '-- kg',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w700, color: c),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                !hasTotal
+                    ? 'Chưa có dữ liệu cân'
+                    : tare == null
+                        ? 'Tổng ${weightKg!.toStringAsFixed(2)} kg · Đặt khối lượng thùng để tính mật'
+                        : 'Tổng ${weightKg!.toStringAsFixed(2)} kg · Thùng ${tare.toStringAsFixed(2)} kg',
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.mutedForeground),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

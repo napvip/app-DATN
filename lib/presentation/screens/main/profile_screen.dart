@@ -365,14 +365,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ]),
                     const SizedBox(height: 24),
-                    OutlinedButton.icon(
+                    ElevatedButton.icon(
                       onPressed: _signOut,
                       icon: const Icon(LucideIcons.logOut, size: 18),
                       label: const Text('Đăng xuất'),
-                      style: OutlinedButton.styleFrom(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.destructiveSoft,
                         foregroundColor: AppColors.destructive,
-                        side: const BorderSide(color: AppColors.destructive),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        iconColor: AppColors.destructive,
+                        elevation: 0,
+                        minimumSize: const Size.fromHeight(50),
+                        textStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 32),

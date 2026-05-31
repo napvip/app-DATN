@@ -63,6 +63,10 @@ enum _TimeFilter { today, week, month, all }
 class AlertsScreen extends StatefulWidget {
   const AlertsScreen({super.key});
 
+  /// Khoá của cảnh báo cần mở popup chi tiết ngay khi vào màn này.
+  /// Được set từ màn SOS "Xem ngay" trước khi điều hướng tới đây.
+  static String? pendingDetailKey;
+
   @override
   State<AlertsScreen> createState() => _AlertsScreenState();
 }
@@ -95,6 +99,21 @@ class _AlertsScreenState extends State<AlertsScreen> {
                 final all = _parse(snap.data?.snapshot.value);
                 final unreadTotal = all.where((a) => !a.isRead).length;
                 final filtered = _applyFilter(all);
+
+                // Khi điều hướng từ màn SOS "Xem ngay": tự mở popup chi tiết
+                // của đúng cảnh báo đó (chỉ làm một lần, sau khi đã có dữ liệu).
+                final pendingKey = AlertsScreen.pendingDetailKey;
+                if (pendingKey != null &&
+                    snap.connectionState != ConnectionState.waiting) {
+                  AlertsScreen.pendingDetailKey = null;
+                  final match =
+                      all.where((a) => a.key == pendingKey).toList();
+                  if (match.isNotEmpty) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _openDetail(match.first);
+                    });
+                  }
+                }
 
                 return SafeArea(
                   bottom: false,
@@ -1069,24 +1088,50 @@ class _DetailSheet extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   if (alert.imageUrl != null) ...[
-                    ClipRRect(
-                      borderRadius:
-                          BorderRadius.circular(AppTheme.radiusLg),
-                      child: AspectRatio(
-                        aspectRatio: 16 / 10,
-                        child: CachedImage(
-                          imageUrl: alert.imageUrl!,
-                          width: double.infinity,
-                          height: double.infinity,
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              _FullImageView(imageUrl: alert.imageUrl!),
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusLg),
+                        child: Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            AspectRatio(
+                              aspectRatio: 16 / 10,
+                              child: CachedImage(
+                                imageUrl: alert.imageUrl!,
+                                width: double.infinity,
+                                height: double.infinity,
+                              ),
+                            ),
+                            // Gợi ý chạm để xem ảnh đầy đủ
+                            Container(
+                              margin: const EdgeInsets.all(8),
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: AppColors.gray900
+                                    .withValues(alpha: 0.55),
+                                borderRadius: BorderRadius.circular(
+                                    AppTheme.radiusFull),
+                              ),
+                              child: const Icon(LucideIcons.maximize2,
+                                  size: 14, color: Colors.white),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
                   ],
                   Container(
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.background,
                       borderRadius:
                           BorderRadius.circular(AppTheme.radiusLg),
                       border: Border.all(color: AppColors.border),
@@ -1094,76 +1139,61 @@ class _DetailSheet extends StatelessWidget {
                     child: Column(
                       children: [
                         _InfoRow(
-                          icon: LucideIcons.alertTriangle,
                           label: 'Số lượng phát hiện',
-                          value:
-                              '${alert.detectionCount} con ong bắp cày',
-                          color: AppColors.destructive,
+                          value: '${alert.detectionCount} con',
                         ),
                         const Divider(
-                            height: 18, color: AppColors.border),
+                            height: 1, color: AppColors.border),
                         _InfoRow(
-                          icon: LucideIcons.target,
                           label: 'Độ tin cậy',
                           value:
                               '${(alert.confidence * 100).toStringAsFixed(0)}%',
-                          color: AppColors.success,
                         ),
                         const Divider(
-                            height: 18, color: AppColors.border),
+                            height: 1, color: AppColors.border),
                         _InfoRow(
-                          icon: LucideIcons.clock,
                           label: 'Thời gian',
                           value: timeStr,
-                          color: AppColors.primary,
                         ),
                         const Divider(
-                            height: 18, color: AppColors.border),
+                            height: 1, color: AppColors.border),
                         _InfoRow(
-                          icon: LucideIcons.cpu,
                           label: 'Thiết bị',
                           value: alert.deviceId,
-                          color: AppColors.mutedForeground,
                           mono: true,
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            onDelete();
-                          },
-                          icon: const Icon(LucideIcons.trash2, size: 16),
-                          label: const Text('Xóa'),
+                        child: OutlinedButton(
+                          onPressed: onDelete,
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.destructive,
-                            side: const BorderSide(
-                                color: AppColors.destructive),
+                            foregroundColor: AppColors.mutedForeground,
+                            side: const BorderSide(color: AppColors.border),
                           ),
+                          child: const Text('Xóa'),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         flex: 2,
-                        child: FilledButton.icon(
+                        child: FilledButton(
                           onPressed: isActive
                               ? () {
                                   onAcknowledge();
                                   Navigator.pop(context);
                                 }
                               : null,
-                          icon:
-                              const Icon(LucideIcons.checkCircle, size: 16),
-                          label: Text(
-                            isActive ? 'Đánh dấu đã xử lý' : 'Đã xử lý',
-                          ),
                           style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.success,
+                            backgroundColor: AppColors.foreground,
                             disabledBackgroundColor: AppColors.gray200,
+                          ),
+                          child: Text(
+                            isActive ? 'Đánh dấu đã xử lý' : 'Đã xử lý',
                           ),
                         ),
                       ),
@@ -1180,44 +1210,84 @@ class _DetailSheet extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  final IconData icon;
   final String label;
   final String value;
-  final Color color;
   final bool mono;
   const _InfoRow({
-    required this.icon,
     required this.label,
     required this.value,
-    required this.color,
     this.mono = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 15, color: color),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.mutedForeground,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 11),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.mutedForeground,
+              ),
             ),
           ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: AppColors.foreground,
-            fontFamily: mono ? 'monospace' : null,
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.foreground,
+                fontFamily: mono ? 'monospace' : null,
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Trình xem ảnh đầy đủ (chạm vào ảnh trong popup) ──────────────────────────
+class _FullImageView extends StatelessWidget {
+  final String imageUrl;
+  const _FullImageView({required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Center(
+            child: InteractiveViewer(
+              minScale: 0.8,
+              maxScale: 4,
+              child: CachedImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.contain,
+                width: double.infinity,
+              ),
+            ),
+          ),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            right: 8,
+            child: IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(LucideIcons.x, color: Colors.white),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.15),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

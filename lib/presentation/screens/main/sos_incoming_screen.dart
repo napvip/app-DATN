@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../config/app_routes.dart';
 import '../../../core/widgets/cached_image.dart';
 import '../../../data/datasources/sos_realtime_service.dart';
+import 'alerts_screen.dart';
 
 class SOSIncomingScreen extends StatefulWidget {
   static bool isShowing = false;
@@ -171,14 +172,15 @@ class _SOSIncomingScreenState extends State<SOSIncomingScreen>
                         bg: const Color(0xFFDC2626),
                         onTap: () {
                           SOSRealtimeService().stopAlarm();
+                          final key =
+                              (widget.alert['key'] as String?)?.trim() ?? '';
+                          final router = GoRouter.of(context);
                           Navigator.of(context).pop();
-                          final deviceId =
-                              (widget.alert['device_id'] as String?)?.trim() ?? '';
-                          if (deviceId.isNotEmpty) {
-                            context.push('/hive/$deviceId');
-                          } else {
-                            context.go(AppRoutes.alerts);
+                          // Vào trang Cảnh báo rồi tự mở popup chi tiết cảnh báo này.
+                          if (key.isNotEmpty) {
+                            AlertsScreen.pendingDetailKey = key;
                           }
+                          router.go(AppRoutes.alerts);
                         },
                       ),
                     ),
@@ -204,39 +206,53 @@ class _DetectionImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Responsive: giới hạn bề rộng để không bị kéo dài trên tablet, và dùng
+    // BoxFit.contain để hiển thị đầy đủ khung ảnh phát hiện trên mọi màn hình.
+    final maxHeight = MediaQuery.of(context).size.height * 0.4;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Stack(
-        alignment: Alignment.topRight,
-        children: [
-          // Detection image
-          AnimatedBuilder(
-            animation: pulseCtrl,
-            builder: (_, child) {
-              final glow = 8.0 + pulseCtrl.value * 12.0;
-              return Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.red.withOpacity(0.4 + pulseCtrl.value * 0.3),
-                      blurRadius: glow,
-                      spreadRadius: 2,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 460, maxHeight: maxHeight),
+          child: Stack(
+            alignment: Alignment.topRight,
+            children: [
+              // Detection image
+              AnimatedBuilder(
+                animation: pulseCtrl,
+                builder: (_, child) {
+                  final glow = 8.0 + pulseCtrl.value * 12.0;
+                  return Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.red
+                              .withValues(alpha: 0.4 + pulseCtrl.value * 0.3),
+                          blurRadius: glow,
+                          spreadRadius: 2,
+                        ),
+                      ],
                     ),
-                  ],
+                    child: child,
+                  );
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: AspectRatio(
+                    aspectRatio: 4 / 3,
+                    child: Container(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      child: CachedImage(
+                        imageUrl: imageUrl,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
                 ),
-                child: child,
-              );
-            },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: CachedImage(
-                imageUrl: imageUrl,
-                width: double.infinity,
-                height: 200,
               ),
-            ),
-          ),
 
           // Animated warning badge
           Positioned(
@@ -272,7 +288,9 @@ class _DetectionImage extends StatelessWidget {
               },
             ),
           ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -184,6 +184,8 @@ class NotificationService {
           'detection_count': int.tryParse(data['detection_count']?.toString() ?? '0') ?? 0,
           'confidence': double.tryParse(data['confidence']?.toString() ?? '0') ?? 0,
           'image_url': data['image_url'] ?? '',
+          // Để "Xem ngay" mở đúng popup chi tiết cảnh báo trong trang Cảnh báo.
+          'key': data['key'] ?? data['alert_key'] ?? '',
         }),
         transitionsBuilder: (_, anim, __, child) => SlideTransition(
           position: Tween<Offset>(

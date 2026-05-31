@@ -171,7 +171,7 @@ class _DeviceControlCardState extends State<DeviceControlCard> {
                 label: 'Camera',
                 sub: cameraOn ? 'Đang chạy' : 'Đã tắt',
                 value: cameraOn,
-                color: AppColors.chart3,
+                color: AppColors.primary,
                 onChanged: hasState
                     ? (v) => _pushCommand('set_camera', {'on': v})
                     : null,
@@ -372,7 +372,6 @@ class _SwitchTile extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: color,
           ),
         ],
       ),
@@ -575,10 +574,8 @@ class _Esp32SectionState extends State<_Esp32Section> {
         SizedBox(
           width: double.infinity,
           child: widget.connected
-              ? OutlinedButton.icon(
+              ? OutlinedButton(
                   onPressed: canDisconnect ? widget.onDisconnect : null,
-                  icon: const Icon(LucideIcons.powerOff, size: 16),
-                  label: const Text('Ngắt kết nối'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.destructive,
                     side: const BorderSide(color: AppColors.destructive),
@@ -587,13 +584,12 @@ class _Esp32SectionState extends State<_Esp32Section> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
+                  child: const Text('Ngắt kết nối'),
                 )
-              : ElevatedButton.icon(
+              : ElevatedButton(
                   onPressed: canConnect
                       ? () => widget.onConnect(selected)
                       : null,
-                  icon: const Icon(LucideIcons.zap, size: 16),
-                  label: const Text('Kết nối'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.success,
                     foregroundColor: AppColors.successForeground,
@@ -603,6 +599,7 @@ class _Esp32SectionState extends State<_Esp32Section> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
+                  child: const Text('Kết nối'),
                 ),
         ),
       ],

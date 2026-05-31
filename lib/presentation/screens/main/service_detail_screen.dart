@@ -20,6 +20,7 @@ class ServiceDetailScreen extends StatefulWidget {
 class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   final _maintenanceService = MaintenanceService();
   ServiceBookingModel? _booking;
+  Map<String, dynamic>? _technician; // dữ liệu KTV mới nhất từ collection technicians
   bool _isLoading = true;
 
   @override
@@ -33,12 +34,32 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     try {
       final booking =
           await _maintenanceService.getBookingById(widget.bookingId);
+      // Lấy thông tin KTV mới nhất (nếu đơn đã được gán)
+      Map<String, dynamic>? tech;
+      if (booking != null && booking.technicianId.isNotEmpty) {
+        tech =
+            await _maintenanceService.getTechnicianById(booking.technicianId);
+      }
       setState(() {
         _booking = booking;
+        _technician = tech;
         _isLoading = false;
       });
     } catch (e) {
       setState(() => _isLoading = false);
+    }
+  }
+
+  // Nhãn chuyên môn KTV (đồng bộ với admin: 0=Bảo trì, 1=Sửa chữa, 2=cả hai)
+  static String _specialtyLabel(dynamic v) {
+    final code = v is num ? v.toInt() : int.tryParse('${v ?? ''}');
+    switch (code) {
+      case 0:
+        return 'Bảo trì';
+      case 1:
+        return 'Sửa chữa';
+      default:
+        return 'Bảo trì & Sửa chữa';
     }
   }
 
@@ -118,12 +139,12 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'Reschedule Service',
+                    'Đổi lịch dịch vụ',
                     style: Theme.of(ctx).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Select a new date and time for your service',
+                    'Chọn ngày và giờ mới cho dịch vụ của bạn',
                     style: Theme.of(ctx).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 24),
@@ -176,7 +197,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                           Text(
                             newDate != null
                                 ? DateFormat('dd/MM/yyyy').format(newDate!)
-                                : 'Select new date',
+                                : 'Chọn ngày mới',
                             style: TextStyle(
                               color: newDate != null
                                   ? AppColors.foreground
@@ -233,7 +254,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                           Text(
                             newTime != null
                                 ? newTime!.format(ctx)
-                                : 'Select new time',
+                                : 'Chọn giờ mới',
                             style: TextStyle(
                               color: newTime != null
                                   ? AppColors.foreground
@@ -251,7 +272,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                     controller: reasonController,
                     maxLines: 2,
                     decoration: const InputDecoration(
-                      hintText: 'Reason for rescheduling (optional)',
+                      hintText: 'Lý do đổi lịch (không bắt buộc)',
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -262,7 +283,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Cancel'),
+                          child: const Text('Hủy'),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -271,7 +292,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                           onPressed: newDate != null && newTime != null
                               ? () => Navigator.pop(ctx, true)
                               : null,
-                          child: const Text('Confirm'),
+                          child: const Text('Xác nhận'),
                         ),
                       ),
                     ],
@@ -298,7 +319,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Rescheduled successfully!'),
+              content: const Text('Đổi lịch thành công!'),
               backgroundColor: AppColors.success,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
@@ -311,7 +332,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error: $e'),
+              content: Text('Lỗi: $e'),
               backgroundColor: AppColors.destructive,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
@@ -330,14 +351,14 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Cancel Booking'),
+        title: const Text('Hủy lịch đặt'),
         content: const Text(
-          'Are you sure you want to cancel this service booking? This action cannot be undone.',
+          'Bạn có chắc muốn hủy lịch đặt dịch vụ này? Thao tác này không thể hoàn tác.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('No, Keep it'),
+            child: const Text('Không, giữ lại'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -345,7 +366,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
               foregroundColor: AppColors.destructiveForeground,
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Yes, Cancel'),
+            child: const Text('Hủy lịch'),
           ),
         ],
       ),
@@ -358,7 +379,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Booking cancelled'),
+              content: const Text('Đã hủy lịch đặt'),
               backgroundColor: AppColors.destructive,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
@@ -371,7 +392,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error: $e'),
+              content: Text('Lỗi: $e'),
               backgroundColor: AppColors.destructive,
             ),
           );
@@ -384,7 +405,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Service Details'),
+        title: const Text('Chi tiết dịch vụ'),
         leading: IconButton(
           icon: const Icon(LucideIcons.arrowLeft),
           onPressed: () => context.pop(),
@@ -403,7 +424,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                           size: 48, color: AppColors.mutedForeground),
                       const SizedBox(height: 16),
                       Text(
-                        'Booking not found',
+                        'Không tìm thấy lịch đặt',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ],
@@ -416,6 +437,29 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   Widget _buildContent() {
     final booking = _booking!;
     final statusColor = _getStatusColor(booking.status);
+
+    // Ưu tiên dữ liệu KTV mới nhất từ collection `technicians`, fallback snapshot
+    // lưu trên đơn (giống cách admin hiển thị).
+    final t = _technician;
+    final techName =
+        ((t?['name'] as String?)?.trim().isNotEmpty ?? false)
+            ? (t!['name'] as String).trim()
+            : booking.technicianName;
+    final techPhone =
+        ((t?['phone'] as String?)?.trim().isNotEmpty ?? false)
+            ? (t!['phone'] as String).trim()
+            : booking.technicianPhone;
+    final techEmail =
+        ((t?['email'] as String?)?.trim().isNotEmpty ?? false)
+            ? (t!['email'] as String).trim()
+            : booking.technicianEmail;
+    final techPhoto =
+        ((t?['photoUrl'] as String?)?.trim().isNotEmpty ?? false)
+            ? (t!['photoUrl'] as String).trim()
+            : booking.technicianPhoto;
+    final techAddress = (t?['address'] as String?)?.trim() ?? '';
+    final techSpecialty =
+        t?['specialty'] != null ? _specialtyLabel(t!['specialty']) : '';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -549,23 +593,23 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Schedule',
+                Text('Lịch hẹn',
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 16),
                 _DetailRow(
                   icon: LucideIcons.calendar,
-                  label: 'Date',
-                  value: DateFormat('EEEE, dd MMMM yyyy')
+                  label: 'Ngày',
+                  value: DateFormat('EEEE, dd MMMM yyyy', 'vi')
                       .format(booking.scheduledDate),
                 ),
                 const SizedBox(height: 12),
                 _DetailRow(
                   icon: LucideIcons.clock,
-                  label: 'Time',
+                  label: 'Giờ',
                   value: booking.scheduledTime,
                 ),
-                // Technician mini-card (shown if assigned)
-                if (booking.technicianName.isNotEmpty) ...[
+                // Thẻ kỹ thuật viên (hiện khi đơn đã được gán)
+                if (techName.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -577,20 +621,21 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                       ),
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Avatar
                         ClipRRect(
                           borderRadius: BorderRadius.circular(10),
-                          child: booking.technicianPhoto.isNotEmpty
+                          child: techPhoto.isNotEmpty
                               ? CachedNetworkImage(
-                                  imageUrl: booking.technicianPhoto,
+                                  imageUrl: techPhoto,
                                   width: 44,
                                   height: 44,
                                   fit: BoxFit.cover,
                                   errorWidget: (_, __, ___) =>
-                                      _TechAvatar(booking.technicianName),
+                                      _TechAvatar(techName),
                                 )
-                              : _TechAvatar(booking.technicianName),
+                              : _TechAvatar(techName),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -598,31 +643,43 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                booking.technicianName,
+                                techName,
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.foreground,
                                 ),
                               ),
-                              if (booking.technicianPhone.isNotEmpty) ...[
+                              if (techSpecialty.isNotEmpty) ...[
                                 const SizedBox(height: 2),
                                 Text(
-                                  booking.technicianPhone,
+                                  techSpecialty,
                                   style: const TextStyle(
                                     fontSize: 12,
-                                    color: AppColors.mutedForeground,
+                                    color: AppColors.chart3,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],
-                              if (booking.technicianEmail.isNotEmpty) ...[
-                                const SizedBox(height: 1),
-                                Text(
-                                  booking.technicianEmail,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.mutedForeground,
-                                  ),
+                              if (techPhone.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                _TechInfoLine(
+                                  icon: LucideIcons.phone,
+                                  text: techPhone,
+                                ),
+                              ],
+                              if (techEmail.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                _TechInfoLine(
+                                  icon: LucideIcons.mail,
+                                  text: techEmail,
+                                ),
+                              ],
+                              if (techAddress.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                _TechInfoLine(
+                                  icon: LucideIcons.mapPin,
+                                  text: techAddress,
                                 ),
                               ],
                             ],
@@ -643,24 +700,24 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Contact',
+                Text('Liên hệ',
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 16),
                 _DetailRow(
                   icon: LucideIcons.user,
-                  label: 'Name',
+                  label: 'Tên',
                   value: booking.customerName,
                 ),
                 const SizedBox(height: 12),
                 _DetailRow(
                   icon: LucideIcons.phone,
-                  label: 'Phone',
+                  label: 'Điện thoại',
                   value: booking.customerPhone,
                 ),
                 const SizedBox(height: 12),
                 _DetailRow(
                   icon: LucideIcons.mapPin,
-                  label: 'Address',
+                  label: 'Địa chỉ',
                   value: booking.customerAddress,
                 ),
               ],
@@ -676,7 +733,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Photos (${booking.imageUrls.length})',
+                    'Hình ảnh (${booking.imageUrls.length})',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 16),
@@ -736,7 +793,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                           size: 20, color: AppColors.mutedForeground),
                       const SizedBox(width: 8),
                       Text(
-                        'Reschedule History',
+                        'Lịch sử đổi lịch',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ],
@@ -760,7 +817,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Reschedule #${entry.key + 1}',
+                            'Lần đổi #${entry.key + 1}',
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
@@ -769,7 +826,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                           const SizedBox(height: 8),
                           if (oldDate != null)
                             Text(
-                              'From: ${DateFormat('dd/MM/yyyy').format(oldDate)} at ${item['oldTime']}',
+                              'Từ: ${DateFormat('dd/MM/yyyy').format(oldDate)} lúc ${item['oldTime']}',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: AppColors.mutedForeground,
@@ -777,7 +834,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                             ),
                           if (newDate != null)
                             Text(
-                              'To: ${DateFormat('dd/MM/yyyy').format(newDate)} at ${item['newTime']}',
+                              'Đến: ${DateFormat('dd/MM/yyyy').format(newDate)} lúc ${item['newTime']}',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: AppColors.foreground,
@@ -786,7 +843,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                           if (reason.isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Text(
-                              'Reason: $reason',
+                              'Lý do: $reason',
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontStyle: FontStyle.italic,
@@ -819,7 +876,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                           size: 20, color: AppColors.chart3),
                       SizedBox(width: 8),
                       Text(
-                        'Admin Note',
+                        'Ghi chú từ quản trị',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
@@ -850,13 +907,13 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
               children: [
                 _DetailRow(
                   icon: LucideIcons.calendarPlus,
-                  label: 'Created',
+                  label: 'Tạo lúc',
                   value: DateFormat('dd/MM/yyyy HH:mm').format(booking.createdAt),
                 ),
                 const SizedBox(height: 12),
                 _DetailRow(
                   icon: LucideIcons.refreshCw,
-                  label: 'Updated',
+                  label: 'Cập nhật',
                   value: DateFormat('dd/MM/yyyy HH:mm').format(booking.updatedAt),
                 ),
               ],
@@ -875,7 +932,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                       child: OutlinedButton.icon(
                         onPressed: _showRescheduleDialog,
                         icon: const Icon(LucideIcons.calendarClock, size: 18),
-                        label: const Text('Reschedule'),
+                        label: const Text('Đổi lịch'),
                       ),
                     ),
                   ),
@@ -892,7 +949,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                         ),
                         onPressed: _showCancelDialog,
                         icon: const Icon(LucideIcons.x, size: 18),
-                        label: const Text('Cancel'),
+                        label: const Text('Hủy lịch'),
                       ),
                     ),
                   ),
@@ -908,13 +965,13 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   String _getStatusDescription(ServiceStatus status) {
     switch (status) {
       case ServiceStatus.pending:
-        return 'Your booking is waiting for confirmation';
+        return 'Lịch đặt đang chờ xác nhận';
       case ServiceStatus.processing:
-        return 'A technician has been assigned';
+        return 'Đã phân công kỹ thuật viên';
       case ServiceStatus.completed:
-        return 'Service has been completed';
+        return 'Dịch vụ đã hoàn thành';
       case ServiceStatus.cancelled:
-        return 'This booking has been cancelled';
+        return 'Lịch đặt đã bị hủy';
     }
   }
 
@@ -941,6 +998,32 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
 // =============================================================================
 // Technician Avatar fallback
 // =============================================================================
+
+class _TechInfoLine extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _TechInfoLine({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 13, color: AppColors.mutedForeground),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.mutedForeground,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class _TechAvatar extends StatelessWidget {
   final String name;

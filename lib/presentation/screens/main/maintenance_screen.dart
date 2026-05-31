@@ -134,13 +134,6 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
                         maintenanceService: _maintenanceService,
                       ),
               ),
-              const SizedBox(height: 32),
-
-              // Resources
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: _ResourcesCard(),
-              ),
               const SizedBox(height: 100),
             ],
           ),
@@ -186,12 +179,12 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'Reschedule Service',
+                    'Đổi lịch dịch vụ',
                     style: Theme.of(ctx).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Pick a new date and time for "${booking.title}"',
+                    'Chọn ngày và giờ mới cho "${booking.title}"',
                     style: Theme.of(ctx).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 24),
@@ -242,7 +235,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
                           Text(
                             newDate != null
                                 ? DateFormat('dd/MM/yyyy').format(newDate!)
-                                : 'Select new date',
+                                : 'Chọn ngày mới',
                             style: TextStyle(
                               color: newDate != null
                                   ? AppColors.foreground
@@ -297,7 +290,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
                           Text(
                             newTime != null
                                 ? newTime!.format(ctx)
-                                : 'Select new time',
+                                : 'Chọn giờ mới',
                             style: TextStyle(
                               color: newTime != null
                                   ? AppColors.foreground
@@ -313,7 +306,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
                     controller: reasonController,
                     maxLines: 2,
                     decoration: const InputDecoration(
-                      hintText: 'Reason for rescheduling (optional)',
+                      hintText: 'Lý do đổi lịch (không bắt buộc)',
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -322,7 +315,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Cancel'),
+                          child: const Text('Hủy'),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -331,7 +324,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
                           onPressed: newDate != null && newTime != null
                               ? () => Navigator.pop(ctx, true)
                               : null,
-                          child: const Text('Confirm'),
+                          child: const Text('Xác nhận'),
                         ),
                       ),
                     ],
@@ -357,7 +350,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Rescheduled successfully!'),
+              content: const Text('Đổi lịch thành công!'),
               backgroundColor: AppColors.success,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
@@ -370,7 +363,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error: $e'),
+              content: Text('Lỗi: $e'),
               backgroundColor: AppColors.destructive,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
@@ -389,14 +382,14 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Cancel Booking'),
+        title: const Text('Hủy lịch đặt'),
         content: Text(
-          'Are you sure you want to cancel "${booking.title}"?\nThis action cannot be undone.',
+          'Bạn có chắc muốn hủy "${booking.title}"?\nThao tác này không thể hoàn tác.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('No, Keep it'),
+            child: const Text('Không, giữ lại'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -404,7 +397,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
               foregroundColor: AppColors.destructiveForeground,
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Yes, Cancel'),
+            child: const Text('Hủy lịch'),
           ),
         ],
       ),
@@ -416,7 +409,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Booking cancelled'),
+              content: const Text('Đã hủy lịch đặt'),
               backgroundColor: AppColors.destructive,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
@@ -429,7 +422,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error: $e'),
+              content: Text('Lỗi: $e'),
               backgroundColor: AppColors.destructive,
             ),
           );
@@ -463,7 +456,7 @@ class _StatsBar extends StatelessWidget {
             children: [
               Expanded(
                 child: _StatChip(
-                  label: 'Pending',
+                  label: 'Chờ xử lý',
                   count: pending,
                   color: AppColors.warning,
                 ),
@@ -471,7 +464,7 @@ class _StatsBar extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _StatChip(
-                  label: 'Processing',
+                  label: 'Đang xử lý',
                   count: processing,
                   color: AppColors.chart3,
                 ),
@@ -479,7 +472,7 @@ class _StatsBar extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _StatChip(
-                  label: 'Completed',
+                  label: 'Hoàn thành',
                   count: completed,
                   color: AppColors.success,
                 ),
@@ -685,8 +678,8 @@ class _UpcomingBookings extends StatelessWidget {
           debugPrint('Upcoming bookings error: ${snapshot.error}');
           return _EmptyState(
             icon: LucideIcons.alertTriangle,
-            title: 'Unable to load bookings',
-            subtitle: 'Please try again later',
+            title: 'Không tải được lịch đặt',
+            subtitle: 'Vui lòng thử lại sau',
           );
         }
 
@@ -695,8 +688,8 @@ class _UpcomingBookings extends StatelessWidget {
         if (bookings.isEmpty) {
           return _EmptyState(
             icon: LucideIcons.calendarOff,
-            title: 'No upcoming services',
-            subtitle: 'Book a service to get started',
+            title: 'Chưa có lịch sắp tới',
+            subtitle: 'Đặt lịch dịch vụ để bắt đầu',
           );
         }
 
@@ -747,8 +740,8 @@ class _BookingHistory extends StatelessWidget {
           debugPrint('Booking history error: ${snapshot.error}');
           return _EmptyState(
             icon: LucideIcons.alertTriangle,
-            title: 'Unable to load history',
-            subtitle: 'Please try again later',
+            title: 'Không tải được lịch sử',
+            subtitle: 'Vui lòng thử lại sau',
           );
         }
 
@@ -757,8 +750,8 @@ class _BookingHistory extends StatelessWidget {
         if (bookings.isEmpty) {
           return _EmptyState(
             icon: LucideIcons.history,
-            title: 'No history yet',
-            subtitle: 'Completed services will appear here',
+            title: 'Chưa có lịch sử',
+            subtitle: 'Các dịch vụ đã hoàn tất sẽ hiển thị ở đây',
           );
         }
 
@@ -895,7 +888,7 @@ class _BookingCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                '${DateFormat('dd MMM yyyy').format(booking.scheduledDate)} at ${booking.scheduledTime}',
+                '${DateFormat('dd/MM/yyyy').format(booking.scheduledDate)} lúc ${booking.scheduledTime}',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],
@@ -911,7 +904,7 @@ class _BookingCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Technician: ${booking.technicianName}',
+                  'Kỹ thuật viên: ${booking.technicianName}',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
@@ -947,7 +940,7 @@ class _BookingCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    'Rescheduled ×${booking.rescheduleHistory.length}',
+                    'Đã đổi lịch ×${booking.rescheduleHistory.length}',
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
@@ -965,7 +958,7 @@ class _BookingCard extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: onReschedule,
-                      child: const Text('Reschedule'),
+                      child: const Text('Đổi lịch'),
                     ),
                   ),
                 if (booking.canReschedule && booking.canCancel)
@@ -979,7 +972,7 @@ class _BookingCard extends StatelessWidget {
                         side: const BorderSide(
                             color: AppColors.destructive, width: 1),
                       ),
-                      child: const Text('Cancel'),
+                      child: const Text('Hủy'),
                     ),
                   ),
               ],
@@ -1038,84 +1031,3 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-// =============================================================================
-// Resources Card
-// =============================================================================
-
-class _ResourcesCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Resources & Support',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 16),
-          _ResourceItem(
-            icon: LucideIcons.fileText,
-            label: 'Troubleshooting Guide',
-            onTap: () {},
-          ),
-          _ResourceItem(
-            icon: LucideIcons.shield,
-            label: 'Warranty Information',
-            onTap: () {},
-          ),
-          _ResourceItem(
-            icon: LucideIcons.messageCircle,
-            label: 'Contact Support',
-            onTap: () {},
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ResourceItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _ResourceItem({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 20,
-              color: AppColors.mutedForeground,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ),
-            const Icon(
-              LucideIcons.chevronRight,
-              size: 20,
-              color: AppColors.mutedForeground,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

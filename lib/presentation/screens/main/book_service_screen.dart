@@ -186,7 +186,7 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Book Service'),
+        title: const Text('Đặt lịch dịch vụ'),
         leading: IconButton(
           icon: const Icon(LucideIcons.arrowLeft),
           onPressed: () => context.pop(),
@@ -200,7 +200,7 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Service Type Selection
-              _SectionTitle(title: 'Service Type'),
+              _SectionTitle(title: 'Loại dịch vụ'),
               const SizedBox(height: 12),
               _ServiceTypeSelector(
                 selected: _serviceType,
@@ -209,12 +209,12 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
               const SizedBox(height: 24),
 
               // Title
-              _SectionTitle(title: 'Service Details'),
+              _SectionTitle(title: 'Chi tiết yêu cầu'),
               const SizedBox(height: 12),
               _buildTextField(
                 controller: _titleController,
-                label: 'Title',
-                hint: 'e.g. Sensor not working',
+                label: 'Tiêu đề',
+                hint: 'VD: Cảm biến không hoạt động',
                 icon: LucideIcons.fileText,
                 validator: (v) =>
                     v == null || v.trim().isEmpty ? 'Vui lòng nhập tiêu đề' : null,
@@ -224,8 +224,8 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
               // Description
               _buildTextField(
                 controller: _descriptionController,
-                label: 'Problem Description',
-                hint: 'Describe the issue in detail...',
+                label: 'Mô tả vấn đề',
+                hint: 'Mô tả chi tiết vấn đề...',
                 icon: LucideIcons.alignLeft,
                 maxLines: 4,
                 validator: (v) =>
@@ -234,7 +234,7 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
               const SizedBox(height: 16),
 
               // Priority
-              _SectionTitle(title: 'Priority Level'),
+              _SectionTitle(title: 'Mức ưu tiên'),
               const SizedBox(height: 12),
               _PrioritySelector(
                 selected: _priority,
@@ -243,12 +243,12 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
               const SizedBox(height: 24),
 
               // Customer Info
-              _SectionTitle(title: 'Contact Information'),
+              _SectionTitle(title: 'Thông tin liên hệ'),
               const SizedBox(height: 12),
               _buildTextField(
                 controller: _nameController,
-                label: 'Full Name',
-                hint: 'Your name',
+                label: 'Họ và tên',
+                hint: 'Tên của bạn',
                 icon: LucideIcons.user,
                 validator: (v) =>
                     v == null || v.trim().isEmpty ? 'Vui lòng nhập tên' : null,
@@ -256,7 +256,7 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
               const SizedBox(height: 16),
               _buildTextField(
                 controller: _phoneController,
-                label: 'Phone number',
+                label: 'Số điện thoại',
                 hint: '0912 345 678',
                 icon: LucideIcons.phone,
                 keyboardType: TextInputType.phone,
@@ -266,8 +266,8 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
               const SizedBox(height: 16),
               _buildTextField(
                 controller: _addressController,
-                label: 'Address',
-                hint: 'Service location address',
+                label: 'Địa chỉ',
+                hint: 'Địa chỉ cần đến',
                 icon: LucideIcons.mapPin,
                 maxLines: 2,
                 validator: (v) =>
@@ -276,16 +276,16 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
               const SizedBox(height: 24),
 
               // Schedule
-              _SectionTitle(title: 'Schedule'),
+              _SectionTitle(title: 'Lịch hẹn'),
               const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
                     child: _DatePickerButton(
-                      label: 'Date',
+                      label: 'Ngày hẹn',
                       value: _selectedDate != null
                           ? DateFormat('dd/MM/yyyy').format(_selectedDate!)
-                          : 'Select date',
+                          : 'Chọn ngày',
                       icon: LucideIcons.calendar,
                       onTap: _pickDate,
                       hasValue: _selectedDate != null,
@@ -294,10 +294,10 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _DatePickerButton(
-                      label: 'Time',
+                      label: 'Giờ hẹn',
                       value: _selectedTime != null
-                          ? _selectedTime!.format(context)
-                          : 'Select time',
+                          ? '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}'
+                          : 'Chọn giờ',
                       icon: LucideIcons.clock,
                       onTap: _pickTime,
                       hasValue: _selectedTime != null,
@@ -308,7 +308,7 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
               const SizedBox(height: 24),
 
               // Images
-              _SectionTitle(title: 'Photos (${_imageBytes.length}/5)'),
+              _SectionTitle(title: 'Hình ảnh (${_imageBytes.length}/5)'),
               const SizedBox(height: 12),
               _ImagePickerGrid(
                 images: _imageBytes,
@@ -352,7 +352,7 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
                           children: const [
                             Icon(LucideIcons.send, size: 20),
                             SizedBox(width: 8),
-                            Text('Submit Booking'),
+                            Text('Gửi yêu cầu'),
                           ],
                         ),
                 ),
@@ -690,7 +690,7 @@ class _ImagePickerGrid extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Add Photo',
+                      'Thêm ảnh',
                       style: TextStyle(
                         fontSize: 11,
                         color: AppColors.mutedForeground,
@@ -781,7 +781,7 @@ class _BookingSummaryCard extends StatelessWidget {
               Icon(LucideIcons.clipboardList, size: 20, color: AppColors.primary),
               SizedBox(width: 8),
               Text(
-                'Booking Summary',
+                'Tóm tắt đặt lịch',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -791,18 +791,22 @@ class _BookingSummaryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          _SummaryRow(label: 'Title', value: title),
-          _SummaryRow(label: 'Type', value: serviceType.label),
-          _SummaryRow(label: 'Priority', value: priority.label),
+          _SummaryRow(label: 'Tiêu đề', value: title),
+          _SummaryRow(label: 'Loại dịch vụ', value: serviceType.label),
+          _SummaryRow(label: 'Mức ưu tiên', value: priority.label),
           if (date != null)
             _SummaryRow(
-              label: 'Date',
+              label: 'Ngày hẹn',
               value: DateFormat('dd/MM/yyyy').format(date!),
             ),
           if (time != null)
-            _SummaryRow(label: 'Time', value: time!.format(context)),
+            _SummaryRow(
+              label: 'Giờ hẹn',
+              value:
+                  '${time!.hour.toString().padLeft(2, '0')}:${time!.minute.toString().padLeft(2, '0')}',
+            ),
           if (customerName.isNotEmpty)
-            _SummaryRow(label: 'Name', value: customerName),
+            _SummaryRow(label: 'Tên khách', value: customerName),
         ],
       ),
     );

@@ -85,6 +85,11 @@ class AuthService {
   // ---------------------------------------------------------------------------
 
   Future<void> sendPasswordResetEmail(String email) async {
+    // Yêu cầu Firebase gửi email theo mẫu tiếng Việt (nếu đã cấu hình locale 'vi'
+    // trong Console). Tránh email mặc định tiếng Anh.
+    try {
+      await _auth.setLanguageCode('vi');
+    } catch (_) {}
     await _auth.sendPasswordResetEmail(email: email.trim());
   }
 

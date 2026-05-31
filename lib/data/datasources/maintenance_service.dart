@@ -139,6 +139,23 @@ class MaintenanceService {
   }
 
   // ---------------------------------------------------------------------------
+  // Lấy thông tin kỹ thuật viên mới nhất từ collection `technicians`
+  // (admin quản lý ở đây; đơn chỉ lưu snapshot lúc gán nên có thể đã cũ).
+  // ---------------------------------------------------------------------------
+
+  Future<Map<String, dynamic>?> getTechnicianById(String technicianId) async {
+    if (technicianId.isEmpty) return null;
+    try {
+      final doc =
+          await _firestore.collection('technicians').doc(technicianId).get();
+      if (!doc.exists) return null;
+      return doc.data();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Hẹn lại lịch → status reset về 0 (Pending)
   // ---------------------------------------------------------------------------
 
