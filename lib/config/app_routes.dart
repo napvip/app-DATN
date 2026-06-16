@@ -13,6 +13,8 @@ import '../presentation/screens/main/main_screen.dart';
 import '../presentation/screens/main/home_screen.dart';
 import '../presentation/screens/main/alerts_screen.dart';
 import '../presentation/screens/main/insights_screen.dart';
+import '../presentation/screens/articles/articles_screen.dart';
+import '../presentation/screens/articles/article_detail_screen.dart';
 import '../presentation/screens/main/maintenance_screen.dart';
 import '../presentation/screens/main/profile_screen.dart';
 import '../presentation/screens/main/book_service_screen.dart';
@@ -54,6 +56,8 @@ class AppRoutes {
   static const String main = '/app';
   static const String alerts = '/app/alerts';
   static const String insights = '/app/insights';
+  static const String articles = '/app/articles';
+  static const String articleDetail = '/article';
   static const String maintenance = '/app/maintenance';
   static const String profile = '/app/profile';
   static const String hiveDetail = '/hive/:id';
@@ -153,6 +157,10 @@ class AppRoutes {
             builder: (context, state) => const InsightsScreen(),
           ),
           GoRoute(
+            path: articles,
+            builder: (context, state) => const ArticlesScreen(),
+          ),
+          GoRoute(
             path: maintenance,
             builder: (context, state) => const MaintenanceScreen(),
           ),
@@ -171,6 +179,13 @@ class AppRoutes {
         builder: (context, state) {
           final id = state.pathParameters['id'] ?? '';
           return HiveDetailScreen(hiveId: id);
+        },
+      ),
+      GoRoute(
+        path: '$articleDetail/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return ArticleDetailScreen(articleId: id);
         },
       ),
       // -----------------------------------------------------------------------

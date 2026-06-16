@@ -24,6 +24,9 @@ dependencies:
   cached_network_image: ^3.4.1
   shimmer: ^3.0.0
 
+  # HTML rendering (nội dung bài viết từ CKEditor)
+  flutter_widget_from_html_core: ^0.15.2
+
   # Icons
   lucide_icons: ^0.257.0
 

@@ -21,8 +21,9 @@ class _MainScreenState extends State<MainScreen> {
     if (location == AppRoutes.main) return 0;
     if (location.contains('alerts')) return 1;
     if (location.contains('insights')) return 2;
-    if (location.contains('maintenance')) return 3;
-    if (location.contains('profile')) return 4;
+    if (location.contains('articles')) return 3;
+    if (location.contains('maintenance')) return 4;
+    if (location.contains('profile')) return 5;
     return 0;
   }
 
@@ -38,9 +39,12 @@ class _MainScreenState extends State<MainScreen> {
         context.go(AppRoutes.insights);
         break;
       case 3:
-        context.go(AppRoutes.maintenance);
+        context.go(AppRoutes.articles);
         break;
       case 4:
+        context.go(AppRoutes.maintenance);
+        break;
+      case 5:
         context.go(AppRoutes.profile);
         break;
     }
@@ -114,16 +118,22 @@ class _MainScreenState extends State<MainScreen> {
                     onTap: () => _onItemTapped(context, 2),
                   ),
                   _NavItem(
-                    icon: LucideIcons.wrench,
-                    label: 'Bảo trì',
+                    icon: LucideIcons.bookOpen,
+                    label: 'Cẩm nang',
                     isSelected: selectedIndex == 3,
                     onTap: () => _onItemTapped(context, 3),
                   ),
                   _NavItem(
-                    icon: LucideIcons.user,
-                    label: 'Tài khoản',
+                    icon: LucideIcons.wrench,
+                    label: 'Bảo trì',
                     isSelected: selectedIndex == 4,
                     onTap: () => _onItemTapped(context, 4),
+                  ),
+                  _NavItem(
+                    icon: LucideIcons.user,
+                    label: 'Tài khoản',
+                    isSelected: selectedIndex == 5,
+                    onTap: () => _onItemTapped(context, 5),
                   ),
                 ],
               ),
